@@ -113,12 +113,9 @@ pub const Registry = struct {
             var prev_arch_components_iter = prev_archetype.components.iterator();
             while (prev_arch_components_iter.next()) |entry| {
                 const prev_component_storage = entry.value_ptr; // type erased from old archetype
-                var new_empty_storage: TypeErasedComponentStorage = undefined;
 
                 // create an empty storage container of the correct type
-                try prev_component_storage.cloneType.?(self.allocator, &new_empty_storage);
-                new_empty_storage.cloneType = prev_component_storage.cloneType;
-
+                const new_empty_storage = try prev_component_storage.cloneType(self.allocator);
                 try target_archetype.components.put(entry.key_ptr.*, new_empty_storage);
             }
 
@@ -148,9 +145,8 @@ pub const Registry = struct {
 
             // copy data for entity from prev_erased_storage.ptr to entity in target_erased_storage.ptr
             try prev_erased_storage.copy(
-                prev_erased_storage.ptr,
-                target_erased_storage.ptr,
                 entity_ptr.entity_idx,
+                target_erased_storage,
                 target_entity_idx,
             );
         }
@@ -226,7 +222,7 @@ pub const Archetype = struct {
         self.entities.deinit();
 
         for (self.components.values()) |erased| {
-            erased.deinit(self.allocator, erased.ptr);
+            erased.deinit();
         }
         self.components.deinit();
     }
@@ -252,7 +248,7 @@ pub const Archetype = struct {
         // perform swapRemove on all component storages
         for (self.components.values()) |*type_erased| {
             // pass the pointer to the TypeErasedComponentStorage struct itself
-            type_erased.swapRemove(type_erased.ptr, entity_idx);
+            type_erased.swapRemove(entity_idx);
         }
 
         return RemoveResult{
@@ -303,26 +299,60 @@ pub fn ComponentStorage(comptime Component: type) type {
     };
 }
 
+pub const ComponentVTable = struct {
+    deinit: *const fn (Allocator, *anyopaque) void,
+    swapRemove: *const fn (*anyopaque, usize) void,
+    copy: *const fn (*anyopaque, *anyopaque, usize, usize) Allocator.Error!void,
+    createEmpty: *const fn (Allocator) error{OutOfMemory}!TypeErasedComponentStorage,
+};
+
+pub fn makeVTable(comptime Component: type) ComponentVTable {
+    return ComponentVTable{
+        .deinit = (struct {
+            fn func(alloc: Allocator, type_erased_ptr: *anyopaque) void {
+                const storage = TypeErasedComponentStorage.cast(type_erased_ptr, Component);
+                storage.deinit();
+                alloc.destroy(storage);
+            }
+        }).func,
+        .swapRemove = (struct {
+            fn func(type_erased_ptr: *anyopaque, entity_idx: usize) void {
+                var storage = TypeErasedComponentStorage.cast(type_erased_ptr, Component);
+                storage.swapRemove(entity_idx);
+            }
+        }).func,
+        .copy = (struct {
+            fn func(
+                src_erased_ptr: *anyopaque,
+                dst_erased_ptr: *anyopaque,
+                src_entity_idx: usize,
+                dst_entity_idx: usize,
+            ) Allocator.Error!void {
+                var src_storage = TypeErasedComponentStorage.cast(src_erased_ptr, Component);
+                const dst_storage = TypeErasedComponentStorage.cast(dst_erased_ptr, Component);
+                try src_storage.copy(src_entity_idx, dst_storage, dst_entity_idx);
+            }
+        }).func,
+        .createEmpty = (struct {
+            fn func(allocator: Allocator) error{OutOfMemory}!TypeErasedComponentStorage {
+                // Creates a new empty storage of Component type
+                const component_ptr = try allocator.create(ComponentStorage(Component));
+                component_ptr.* = ComponentStorage(Component).init(allocator);
+
+                return TypeErasedComponentStorage{
+                    .allocator = allocator,
+                    .ptr = component_ptr,
+                    .vtable = &comptime makeVTable(Component),
+                };
+            }
+        }).func,
+    };
+}
+
 pub const TypeErasedComponentStorage = struct {
     allocator: Allocator,
-
-    /// Type erased pointer to the inherent ComponentStorage(Component).
     ptr: *anyopaque,
-
-    deinit: *const fn (Allocator, type_erased_ptr: *anyopaque) void,
-
-    /// Function to specifically swap-remove a component for the given entity index.
-    swapRemove: *const fn (type_erased_ptr: *anyopaque, entity_idx: usize) void,
-
-    /// Copy from a source component of a certain entity to a given destination.
-    copy: *const fn (
-        src_erased_ptr: *anyopaque,
-        dst_erased_ptr: *anyopaque,
-        src_entity_idx: usize,
-        dst_entity_idx: usize,
-    ) Allocator.Error!void,
-
-    cloneType: ?*const fn (Allocator, dst_type_erased: *TypeErasedComponentStorage) error{OutOfMemory}!void,
+    vtable: *const ComponentVTable,
 
     pub fn init(allocator: Allocator, comptime Component: type) !TypeErasedComponentStorage {
         const component_ptr = try allocator.create(ComponentStorage(Component));
@@ -331,71 +361,24 @@ pub const TypeErasedComponentStorage = struct {
         return TypeErasedComponentStorage{
             .allocator = allocator,
             .ptr = component_ptr,
-            .deinit = (struct {
-                fn func(alloc: Allocator, type_erased_ptr: *anyopaque) void {
-                    const storage = TypeErasedComponentStorage.cast(type_erased_ptr, Component);
-                    storage.deinit();
-                    alloc.destroy(storage);
-                }
-            }).func,
-            .swapRemove = (struct {
-                fn func(type_erased_ptr: *anyopaque, entity_idx: usize) void {
-                    var storage = TypeErasedComponentStorage.cast(type_erased_ptr, Component);
-                    storage.swapRemove(entity_idx);
-                }
-            }).func,
-            .copy = (struct {
-                fn func(
-                    src_erased_ptr: *anyopaque,
-                    dst_erased_ptr: *anyopaque,
-                    src_entity_idx: usize,
-                    dst_entity_idx: usize,
-                ) Allocator.Error!void {
-                    var src_storage = TypeErasedComponentStorage.cast(src_erased_ptr, Component);
-                    const dst_storage = TypeErasedComponentStorage.cast(dst_erased_ptr, Component);
-                    try src_storage.copy(src_entity_idx, dst_storage, dst_entity_idx);
-                }
-            }).func,
-            .cloneType = (struct {
-                fn func(alloc: Allocator, dst_erased: *TypeErasedComponentStorage) error{OutOfMemory}!void {
-                    // Create the new storage as before
-                    const new_storage = try alloc.create(ComponentStorage(Component));
-                    new_storage.* = ComponentStorage(Component).init(alloc);
-
-                    // important: initialize all fields of the destination struct
-                    dst_erased.* = TypeErasedComponentStorage{
-                        .allocator = alloc,
-                        .ptr = new_storage,
-                        .deinit = (struct {
-                            fn inner(inner_alloc: Allocator, type_erased_ptr: *anyopaque) void {
-                                const storage = TypeErasedComponentStorage.cast(type_erased_ptr, Component);
-                                storage.deinit();
-                                inner_alloc.destroy(storage);
-                            }
-                        }).inner,
-                        .swapRemove = (struct {
-                            fn inner(type_erased_ptr: *anyopaque, entity_idx: usize) void {
-                                var storage = TypeErasedComponentStorage.cast(type_erased_ptr, Component);
-                                storage.swapRemove(entity_idx);
-                            }
-                        }).inner,
-                        .copy = (struct {
-                            fn inner(
-                                src_erased_ptr: *anyopaque,
-                                dst_erased_ptr: *anyopaque,
-                                src_entity_idx: usize,
-                                dst_entity_idx: usize,
-                            ) Allocator.Error!void {
-                                var src_storage = TypeErasedComponentStorage.cast(src_erased_ptr, Component);
-                                const dst_storage = TypeErasedComponentStorage.cast(dst_erased_ptr, Component);
-                                try src_storage.copy(src_entity_idx, dst_storage, dst_entity_idx);
-                            }
-                        }).inner,
-                        .cloneType = null, // to avoid recursion, the caller must manually copy over this function
-                    };
-                }
-            }).func,
+            .vtable = &comptime makeVTable(Component),
         };
+    }
+
+    pub fn deinit(self: TypeErasedComponentStorage) void {
+        self.vtable.deinit(self.allocator, self.ptr);
+    }
+
+    pub fn swapRemove(self: TypeErasedComponentStorage, entity_idx: usize) void {
+        self.vtable.swapRemove(self.ptr, entity_idx);
+    }
+
+    pub fn copy(self: TypeErasedComponentStorage, src_entity_idx: usize, dst: TypeErasedComponentStorage, dst_entity_idx: usize) !void {
+        return self.vtable.copy(self.ptr, dst.ptr, src_entity_idx, dst_entity_idx);
+    }
+
+    pub fn cloneType(self: TypeErasedComponentStorage, allocator: Allocator) !TypeErasedComponentStorage {
+        return self.vtable.createEmpty(allocator);
     }
 
     /// Cast a type erased component storage to a ComponentStorage(Component) of the given component type.
@@ -403,3 +386,104 @@ pub const TypeErasedComponentStorage = struct {
         return @alignCast(@ptrCast(erased_ptr));
     }
 };
+
+// pub const TypeErasedComponentStorage = struct {
+//     allocator: Allocator,
+//
+//     /// Type erased pointer to the inherent ComponentStorage(Component).
+//     ptr: *anyopaque,
+//
+//     deinit: *const fn (Allocator, type_erased_ptr: *anyopaque) void,
+//
+//     /// Function to specifically swap-remove a component for the given entity index.
+//     swapRemove: *const fn (type_erased_ptr: *anyopaque, entity_idx: usize) void,
+//
+//     /// Copy from a source component of a certain entity to a given destination.
+//     copy: *const fn (
+//         src_erased_ptr: *anyopaque,
+//         dst_erased_ptr: *anyopaque,
+//         src_entity_idx: usize,
+//         dst_entity_idx: usize,
+//     ) Allocator.Error!void,
+//
+//     cloneType: ?*const fn (Allocator, dst_type_erased: *TypeErasedComponentStorage) error{OutOfMemory}!void,
+//
+//     pub fn init(allocator: Allocator, comptime Component: type) !TypeErasedComponentStorage {
+//         const component_ptr = try allocator.create(ComponentStorage(Component));
+//         component_ptr.* = ComponentStorage(Component).init(allocator);
+//
+//         return TypeErasedComponentStorage{
+//             .allocator = allocator,
+//             .ptr = component_ptr,
+//             .deinit = (struct {
+//                 fn func(alloc: Allocator, type_erased_ptr: *anyopaque) void {
+//                     const storage = TypeErasedComponentStorage.cast(type_erased_ptr, Component);
+//                     storage.deinit();
+//                     alloc.destroy(storage);
+//                 }
+//             }).func,
+//             .swapRemove = (struct {
+//                 fn func(type_erased_ptr: *anyopaque, entity_idx: usize) void {
+//                     var storage = TypeErasedComponentStorage.cast(type_erased_ptr, Component);
+//                     storage.swapRemove(entity_idx);
+//                 }
+//             }).func,
+//             .copy = (struct {
+//                 fn func(
+//                     src_erased_ptr: *anyopaque,
+//                     dst_erased_ptr: *anyopaque,
+//                     src_entity_idx: usize,
+//                     dst_entity_idx: usize,
+//                 ) Allocator.Error!void {
+//                     var src_storage = TypeErasedComponentStorage.cast(src_erased_ptr, Component);
+//                     const dst_storage = TypeErasedComponentStorage.cast(dst_erased_ptr, Component);
+//                     try src_storage.copy(src_entity_idx, dst_storage, dst_entity_idx);
+//                 }
+//             }).func,
+//             .cloneType = (struct {
+//                 fn func(alloc: Allocator, dst_erased: *TypeErasedComponentStorage) error{OutOfMemory}!void {
+//                     // Create the new storage as before
+//                     const new_storage = try alloc.create(ComponentStorage(Component));
+//                     new_storage.* = ComponentStorage(Component).init(alloc);
+//
+//                     // important: initialize all fields of the destination struct
+//                     dst_erased.* = TypeErasedComponentStorage{
+//                         .allocator = alloc,
+//                         .ptr = new_storage,
+//                         .deinit = (struct {
+//                             fn inner(inner_alloc: Allocator, type_erased_ptr: *anyopaque) void {
+//                                 const storage = TypeErasedComponentStorage.cast(type_erased_ptr, Component);
+//                                 storage.deinit();
+//                                 inner_alloc.destroy(storage);
+//                             }
+//                         }).inner,
+//                         .swapRemove = (struct {
+//                             fn inner(type_erased_ptr: *anyopaque, entity_idx: usize) void {
+//                                 var storage = TypeErasedComponentStorage.cast(type_erased_ptr, Component);
+//                                 storage.swapRemove(entity_idx);
+//                             }
+//                         }).inner,
+//                         .copy = (struct {
+//                             fn inner(
+//                                 src_erased_ptr: *anyopaque,
+//                                 dst_erased_ptr: *anyopaque,
+//                                 src_entity_idx: usize,
+//                                 dst_entity_idx: usize,
+//                             ) Allocator.Error!void {
+//                                 var src_storage = TypeErasedComponentStorage.cast(src_erased_ptr, Component);
+//                                 const dst_storage = TypeErasedComponentStorage.cast(dst_erased_ptr, Component);
+//                                 try src_storage.copy(src_entity_idx, dst_storage, dst_entity_idx);
+//                             }
+//                         }).inner,
+//                         .cloneType = null, // to avoid recursion, the caller must manually copy over this function
+//                     };
+//                 }
+//             }).func,
+//         };
+//     }
+//
+//     /// Cast a type erased component storage to a ComponentStorage(Component) of the given component type.
+//     pub fn cast(erased_ptr: *anyopaque, comptime Component: type) *ComponentStorage(Component) {
+//         return @alignCast(@ptrCast(erased_ptr));
+//     }
+// };
