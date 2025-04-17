@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) void {
         // only contains e.g. external object files, you can make this `null`.
         // In this case the main source file is merely a path, however, in more
         // complicated build scripts, this could be a generated file.
-        .root_source_file = b.path("src/main.zig"),
+        .root_source_file = b.path("src/examples/example.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -42,14 +42,14 @@ pub fn build(b: *std.Build) void {
     // Modules can depend on one another using the `std.Build.Module.addImport` function.
     // This is what allows Zig source code to use `@import("foo")` where 'foo' is not a
     // file path. In this case, we set up `exe_mod` to import `lib_mod`.
-    exe_mod.addImport("pine_ecs_lib", lib_mod);
+    exe_mod.addImport("pecs", lib_mod);
 
     // Now, we will create a static library based on the module we created above.
     // This creates a `std.Build.Step.Compile`, which is the build step responsible
     // for actually invoking the compiler.
     const lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "pine_ecs",
+        .name = "pecs",
         .root_module = lib_mod,
     });
 
@@ -61,7 +61,7 @@ pub fn build(b: *std.Build) void {
     // This creates another `std.Build.Step.Compile`, but this one builds an executable
     // rather than a static library.
     const exe = b.addExecutable(.{
-        .name = "pine_ecs",
+        .name = "example",
         .root_module = exe_mod,
     });
 
@@ -90,7 +90,7 @@ pub fn build(b: *std.Build) void {
     // This creates a build step. It will be visible in the `zig build --help` menu,
     // and can be selected like this: `zig build run`
     // This will evaluate the `run` step rather than the default, which is "install".
-    const run_step = b.step("run", "Run the app");
+    const run_step = b.step("example", "Run the example");
     run_step.dependOn(&run_cmd.step);
 
     // Creates a step for unit testing. This only builds the test executable
