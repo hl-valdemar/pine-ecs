@@ -85,6 +85,8 @@ pub const TypeErasedComponentStorage = struct {
     }
 
     /// Cast a type erased component storage to a ComponentStorage(Component) of the given component type.
+    ///
+    /// NOTE: if cast to an inappropriate type, use may lead to corruption of memory.
     pub fn cast(erased_ptr: *anyopaque, comptime Component: type) *ComponentStorage(Component) {
         return @alignCast(@ptrCast(erased_ptr));
     }

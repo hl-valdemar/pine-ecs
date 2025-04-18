@@ -100,64 +100,100 @@ pub const Registry = struct {
         _ = self.entities.remove(entity);
     }
 
+    /// Create a new archetype with a new component type.
+    fn createArchetypeWithComponent(
+        allocator: Allocator,
+        prev_archetype: *Archetype,
+        component_type_name: []const u8,
+        comptime ComponentType: type,
+    ) !Archetype {
+        const resulting_hash = prev_archetype.hash ^ std.hash_map.hashString(component_type_name);
+
+        var new_archetype = Archetype.init(allocator);
+        new_archetype.hash = resulting_hash;
+
+        // copy component storage types from previous archetype
+        var prev_arch_components_iter = prev_archetype.components.iterator();
+        while (prev_arch_components_iter.next()) |entry| {
+            const prev_component_storage = entry.value_ptr;
+            const new_empty_storage = try prev_component_storage.cloneType(allocator);
+            try new_archetype.components.put(entry.key_ptr.*, new_empty_storage);
+        }
+
+        // add storage for the new component type
+        const new_erased_storage = try TypeErasedComponentStorage.init(allocator, ComponentType);
+        try new_archetype.components.put(component_type_name, new_erased_storage);
+
+        return new_archetype;
+    }
+
+    /// Migrate entity components between archetypes.
+    fn migrateEntityComponents(
+        prev_archetype: *Archetype,
+        target_archetype: *Archetype,
+        src_entity_idx: usize,
+        dst_entity_idx: usize,
+    ) !void {
+        var prev_arch_components_iter = prev_archetype.components.iterator();
+        while (prev_arch_components_iter.next()) |entry| {
+            const component_type_name = entry.key_ptr.*;
+            const prev_erased_storage = entry.value_ptr;
+            const target_erased_storage = target_archetype.components.get(component_type_name).?;
+
+            try prev_erased_storage.copy(
+                src_entity_idx,
+                target_erased_storage,
+                dst_entity_idx,
+            );
+        }
+    }
+
+    /// Handle entity swapping after removal.
+    fn handleSwappedEntity(
+        self: *Registry,
+        swapped_entity_id: ?EntityID,
+        original_entity_idx: usize,
+    ) !void {
+        if (swapped_entity_id) |entity_id| {
+            if (self.entities.getPtr(entity_id)) |swapped_entity_ptr_ptr| {
+                swapped_entity_ptr_ptr.*.entity_idx = original_entity_idx;
+            } else {
+                std.debug.print("Error: Swapped entity ID {d} not found in registry!", .{entity_id});
+                return error.InternalInconsistency;
+            }
+        }
+    }
+
     pub fn addComponent(self: *Registry, entity: EntityID, component: anytype) !void {
-        const entity_ptr = self.entities.get(entity).?;
-        var prev_archetype = self.archetypes.getPtr(entity_ptr.archetype_hash).?;
+        // get entity pointer or return error if entity doesn't exist
+        const entity_ptr = self.entities.get(entity) orelse return error.NoSuchEntity;
+        var prev_archetype = self.archetypes.getPtr(entity_ptr.archetype_hash) orelse return error.NoSuchArchetype;
 
-        const resulting_hash = prev_archetype.hash ^ std.hash_map.hashString(@typeName(@TypeOf(component)));
+        // calculate type name and resulting archetype hash
+        const component_type_name = @typeName(@TypeOf(component));
+        const resulting_hash = prev_archetype.hash ^ std.hash_map.hashString(component_type_name);
 
+        // get or create the target archetype
         const resulting_archetype_entry = try self.archetypes.getOrPut(resulting_hash);
         const target_archetype = resulting_archetype_entry.value_ptr;
 
-        // setup *new* archetype if it doesn't exist
+        // setup new archetype if it doesn't exist
         if (!resulting_archetype_entry.found_existing) {
-            // initialize the archetype itself
-            target_archetype.* = Archetype.init(self.allocator);
-
-            // setup *empty* storage for all components from the previous archetype
-            var prev_arch_components_iter = prev_archetype.components.iterator();
-            while (prev_arch_components_iter.next()) |entry| {
-                const prev_component_storage = entry.value_ptr; // type erased from old archetype
-
-                // create an empty storage container of the correct type
-                const new_empty_storage = try prev_component_storage.cloneType(self.allocator);
-                try target_archetype.components.put(entry.key_ptr.*, new_empty_storage);
-            }
-
-            // setup *empty* storage for the new component type
-            const new_erased_storage = try TypeErasedComponentStorage.init(self.allocator, @TypeOf(component));
-            try target_archetype.components.put(@typeName(@TypeOf(component)), new_erased_storage);
-
-            // crucially, set the hash for the new archetype
-            target_archetype.hash = resulting_hash;
+            target_archetype.* = try createArchetypeWithComponent(self.allocator, prev_archetype, component_type_name, @TypeOf(component));
         } else {
             // archetype already exists, assert its hash is correct
             std.debug.assert(target_archetype.hash == resulting_hash);
         }
 
-        // add the entity ID to the target entity->index map
+        // add the entity id to the target archetype
         const target_entity_idx = target_archetype.entities.items.len;
         try target_archetype.entities.append(entity);
 
         // migrate data for existing components
-        var prev_arch_components_iter = prev_archetype.components.iterator();
-        while (prev_arch_components_iter.next()) |entry| {
-            const component_type_name = entry.key_ptr.*;
-            const prev_erased_storage = entry.value_ptr; // type erased from old archetype
+        try migrateEntityComponents(prev_archetype, target_archetype, entity_ptr.entity_idx, target_entity_idx);
 
-            // get the corresponding storage from the target archetype
-            const target_erased_storage = target_archetype.components.get(component_type_name).?;
-
-            // copy data for entity from prev_erased_storage.ptr to entity in target_erased_storage.ptr
-            try prev_erased_storage.copy(
-                entity_ptr.entity_idx,
-                target_erased_storage,
-                target_entity_idx,
-            );
-        }
-
-        // add the new component too
-        const new_component_storage = target_archetype.components.getPtr(@typeName(@TypeOf(component))).?;
+        // add the new component
+        const new_component_storage = target_archetype.components.getPtr(component_type_name).?;
         var specific_component_storage = TypeErasedComponentStorage.cast(new_component_storage.ptr, @TypeOf(component));
         try specific_component_storage.set(target_entity_idx, component);
 
@@ -167,23 +203,10 @@ pub const Registry = struct {
             .archetype_hash = target_archetype.hash,
         });
 
-        // remove entity from previous archetype (needs attention to swapped entity)
+        // remove entity from previous archetype
         const remove_result = prev_archetype.remove(entity_ptr.entity_idx);
-
-        // make sure we removed the right entity
         std.debug.assert(remove_result.removed_id == entity);
 
-        // handle the swapped entity
-        if (remove_result.swapped_id) |swapped_entity_id| {
-            // an entity was swapped into the removed entity's old slot, so update its pointer
-            if (self.entities.getPtr(swapped_entity_id)) |swapped_entity_ptr_ptr| {
-                // update the index for the swapped entity - it's now at the index that the entity we just moved used to be
-                swapped_entity_ptr_ptr.*.entity_idx = entity_ptr.entity_idx;
-            } else {
-                // this case should ideally not happen if the ECS state is consistent
-                std.debug.print("Error: Swapped entity ID {d} not found in registry during remove!", .{swapped_entity_id});
-                return error.InternalInconsistency;
-            }
-        }
+        try handleSwappedEntity(self, remove_result.swapped_id, entity_ptr.entity_idx);
     }
 };

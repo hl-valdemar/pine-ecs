@@ -51,7 +51,7 @@ pub const Archetype = struct {
     }
 
     /// Replace the component at the given entity index.
-    pub fn set(self: *Archetype, name: []const u8, entity_idx: usize, component: anytype) void {
+    pub fn set(self: *Archetype, name: []const u8, entity_idx: usize, component: anytype) !void {
         const type_erased_components = self.components.get(name).?;
         const components = TypeErasedComponentStorage.cast(type_erased_components.ptr, @TypeOf(component));
         try components.set(entity_idx, component);
