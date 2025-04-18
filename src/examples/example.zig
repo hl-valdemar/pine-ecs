@@ -9,60 +9,40 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
+    const Position = struct { x: u32, y: u32 };
+    const Health = u8;
+    const Name = []const u8;
+
     var registry = try Registry.init(allocator);
     defer registry.deinit();
 
     const player = try registry.createEntity();
-    std.debug.print("created player! (id = {})\n", .{player});
-
-    const Name = []const u8;
+    defer _ = registry.destroyEntity(player) catch |err| std.debug.print("Failed to remove player entity: {}", .{err});
     try registry.addComponent(player, @as(Name, "Jane"));
-
-    if (registry.archetypes.get(registry.entities.get(player).?.archetype_hash)) |archetype| {
-        const type_erased_storage = archetype.components.get(@typeName(Name)).?;
-
-        const name_storage = TypeErasedComponentStorage.cast(type_erased_storage.ptr, Name);
-        const name = name_storage.get(registry.entities.get(player).?.entity_idx);
-
-        std.debug.print("player name: {s}\n", .{name});
-    }
-
-    const Health = u8;
     try registry.addComponent(player, @as(Health, 10));
-
-    if (registry.archetypes.get(registry.entities.get(player).?.archetype_hash)) |archetype| {
-        const type_erased_storage = archetype.components.get(@typeName(Health)).?;
-
-        const health_storage = TypeErasedComponentStorage.cast(type_erased_storage.ptr, Health);
-        const health = health_storage.get(registry.entities.get(player).?.entity_idx);
-
-        std.debug.print("player health: {}\n", .{health});
-    }
-
-    const Position = struct {
-        x: u32,
-        y: u32,
-    };
     try registry.addComponent(player, Position{ .x = 2, .y = 5 });
 
-    if (registry.archetypes.get(registry.entities.get(player).?.archetype_hash)) |archetype| {
-        const type_erased_storage = archetype.components.get(@typeName(Position)).?;
-
-        const position_storage = TypeErasedComponentStorage.cast(type_erased_storage.ptr, Position);
-        const position = position_storage.get(registry.entities.get(player).?.entity_idx);
-
-        std.debug.print("player position: {any}\n", .{position});
-    }
+    const enemy = try registry.createEntity();
+    defer _ = registry.destroyEntity(enemy) catch |err| std.debug.print("Failed to remove enemy entity: {}", .{err});
+    try registry.addComponent(enemy, @as(Name, "John"));
+    try registry.addComponent(enemy, @as(Health, 3));
+    try registry.addComponent(enemy, Position{ .x = 7, .y = 9 });
 
     // QUERY EXPERIMENTS //
 
+    std.debug.print("All position components before modification:\n", .{});
     var positions = try registry.query(Position);
     while (positions.next()) |position| {
-        std.debug.print("Position: {any}\n", .{position});
+        std.debug.print("  {any}\n", .{position});
+        position.x += 10;
+        position.y += 10;
+    }
+
+    std.debug.print("All position components after modification:\n", .{});
+    positions = try registry.query(Position);
+    while (positions.next()) |position| {
+        std.debug.print("  {any}\n", .{position});
     }
 
     ///////////////////////
-
-    const found_and_removed = try registry.destroyEntity(player);
-    std.debug.print("removed player: {}\n", .{found_and_removed});
 }

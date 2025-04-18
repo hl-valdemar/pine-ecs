@@ -239,7 +239,7 @@ pub const Registry = struct {
 
     pub fn query(self: *Registry, comptime Component: type) !QueryIterator(Component) {
         // buffer for collecting values for the iterator
-        var buffer = std.ArrayList(Component).init(self.allocator);
+        var buffer = std.ArrayList(*Component).init(self.allocator);
         defer buffer.deinit();
 
         // look for the given component type in all archetypes
@@ -255,7 +255,7 @@ pub const Registry = struct {
                 if (std.mem.eql(u8, component_name, @typeName(Component))) {
                     const type_erased_storage = entry.value_ptr.*;
                     const component_storage = TypeErasedComponentStorage.cast(type_erased_storage.ptr, Component);
-                    for (component_storage.components.items) |component| {
+                    for (component_storage.components.items) |*component| {
                         try buffer.append(component);
                     }
                 }
@@ -272,18 +272,18 @@ pub fn QueryIterator(comptime Component: type) type {
         const Self = @This();
 
         allocator: Allocator,
-        values: []Component,
+        values: []*Component,
         value_ptr: usize = 0,
 
-        pub fn init(allocator: Allocator, data: []Component) !Self {
+        pub fn init(allocator: Allocator, data: []*Component) !Self {
             return Self{
                 .allocator = allocator,
-                .values = try allocator.dupe(Component, data),
+                .values = try allocator.dupe(*Component, data),
                 .value_ptr = 0,
             };
         }
 
-        pub fn next(self: *Self) ?Component {
+        pub fn next(self: *Self) ?*Component {
             if (self.value_ptr < self.values.len) {
                 const next_val = self.values[self.value_ptr];
                 self.value_ptr += 1;
