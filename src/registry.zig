@@ -263,7 +263,7 @@ pub const Registry = struct {
         }
 
         // copy buffered values into iterator
-        return QueryIterator(Component).init(buffer.items);
+        return try QueryIterator(Component).init(self.allocator, buffer.items);
     }
 };
 
@@ -271,12 +271,14 @@ pub fn QueryIterator(comptime Component: type) type {
     return struct {
         const Self = @This();
 
+        allocator: Allocator,
         values: []Component,
         value_ptr: usize = 0,
 
-        pub fn init(data: []Component) Self {
+        pub fn init(allocator: Allocator, data: []Component) !Self {
             return Self{
-                .values = data,
+                .allocator = allocator,
+                .values = try allocator.dupe(Component, data),
                 .value_ptr = 0,
             };
         }
@@ -285,6 +287,11 @@ pub fn QueryIterator(comptime Component: type) type {
             if (self.value_ptr < self.values.len) {
                 const next_val = self.values[self.value_ptr];
                 self.value_ptr += 1;
+
+                // free the value array if the value pointer exceeds the length
+                if (self.value_ptr == self.values.len)
+                    self.allocator.free(self.values);
+
                 return next_val;
             }
             return null;
