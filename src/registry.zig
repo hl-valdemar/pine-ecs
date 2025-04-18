@@ -39,6 +39,11 @@ pub const Registry = struct {
             .archetypes = std.AutoHashMap(ArchetypeHashType, Archetype).init(allocator),
         };
 
+        errdefer {
+            registry.entities.deinit();
+            registry.archetypes.deinit();
+        }
+
         // the empty archetype should always be present
         const empty_archetype = Archetype.init(allocator);
         try registry.archetypes.put(empty_archetype.hash, empty_archetype);
@@ -60,11 +65,14 @@ pub const Registry = struct {
         const new_id = self.entities.count();
         const empty_archetype = self.archetypes.getPtr(Archetype.EMPTY_ARCHETYPE_HASH).?;
 
-        // 1) add new entity to archetype's list
+        // add new entity to archetype's list
         const entity_idx = empty_archetype.entities.items.len;
         try empty_archetype.entities.append(new_id);
 
-        // 2) add entity pointer to the registry
+        // remove the entity if entity pointer creation fails
+        errdefer _ = empty_archetype.entities.pop();
+
+        // add entity pointer to the registry
         try self.entities.put(new_id, EntityPointer{
             .archetype_hash = empty_archetype.hash,
             .entity_idx = entity_idx,
@@ -74,7 +82,7 @@ pub const Registry = struct {
     }
 
     /// Returns true if the entity was succesfully removed, false otherwise.
-    pub fn destroyEntity(self: *Registry, entity: EntityID) RegistryError!void {
+    pub fn destroyEntity(self: *Registry, entity: EntityID) RegistryError!bool {
         const entity_ptr = self.entities.get(entity) orelse return error.NoSuchEntity;
         var archetype = self.archetypes.getPtr(entity_ptr.archetype_hash) orelse return error.NoSuchArchetype;
 
@@ -97,7 +105,7 @@ pub const Registry = struct {
         }
 
         // remove entity id from registry's entities list
-        _ = self.entities.remove(entity);
+        return self.entities.remove(entity);
     }
 
     /// Create a new archetype with a new component type.
@@ -110,18 +118,25 @@ pub const Registry = struct {
         const resulting_hash = prev_archetype.hash ^ std.hash_map.hashString(component_type_name);
 
         var new_archetype = Archetype.init(allocator);
+        errdefer new_archetype.deinit();
+
         new_archetype.hash = resulting_hash;
 
         // copy component storage types from previous archetype
         var prev_arch_components_iter = prev_archetype.components.iterator();
         while (prev_arch_components_iter.next()) |entry| {
             const prev_component_storage = entry.value_ptr;
+
             const new_empty_storage = try prev_component_storage.cloneType(allocator);
+            errdefer new_empty_storage.deinit();
+
             try new_archetype.components.put(entry.key_ptr.*, new_empty_storage);
         }
 
         // add storage for the new component type
         const new_erased_storage = try TypeErasedComponentStorage.init(allocator, ComponentType);
+        errdefer new_erased_storage.deinit();
+
         try new_archetype.components.put(component_type_name, new_erased_storage);
 
         return new_archetype;
@@ -177,17 +192,29 @@ pub const Registry = struct {
         const resulting_archetype_entry = try self.archetypes.getOrPut(resulting_hash);
         const target_archetype = resulting_archetype_entry.value_ptr;
 
+        const created_new_archetype = !resulting_archetype_entry.found_existing;
+        errdefer if (created_new_archetype) {
+            _ = self.archetypes.remove(resulting_hash);
+            target_archetype.deinit();
+        };
+
         // setup new archetype if it doesn't exist
-        if (!resulting_archetype_entry.found_existing) {
-            target_archetype.* = try createArchetypeWithComponent(self.allocator, prev_archetype, component_type_name, @TypeOf(component));
+        if (created_new_archetype) {
+            target_archetype.* = try createArchetypeWithComponent(
+                self.allocator,
+                prev_archetype,
+                component_type_name,
+                @TypeOf(component),
+            );
         } else {
             // archetype already exists, assert its hash is correct
             std.debug.assert(target_archetype.hash == resulting_hash);
         }
 
-        // add the entity id to the target archetype
+        // add the entity ID to the target archetype
         const target_entity_idx = target_archetype.entities.items.len;
         try target_archetype.entities.append(entity);
+        errdefer _ = target_archetype.entities.pop();
 
         // migrate data for existing components
         try migrateEntityComponents(prev_archetype, target_archetype, entity_ptr.entity_idx, target_entity_idx);
@@ -209,4 +236,58 @@ pub const Registry = struct {
 
         try handleSwappedEntity(self, remove_result.swapped_id, entity_ptr.entity_idx);
     }
+
+    pub fn query(self: *Registry, comptime Component: type) !QueryIterator(Component) {
+        // buffer for collecting values for the iterator
+        var buffer = std.ArrayList(Component).init(self.allocator);
+        defer buffer.deinit();
+
+        // look for the given component type in all archetypes
+        var archetype_iter = self.archetypes.valueIterator();
+        while (archetype_iter.next()) |archetype| {
+
+            // look for the component type among components of each archetype
+            var component_iter = archetype.components.iterator();
+            while (component_iter.next()) |entry| {
+
+                // if component types match, add all components of the type to the buffer
+                const component_name = entry.key_ptr.*;
+                if (std.mem.eql(u8, component_name, @typeName(Component))) {
+                    const type_erased_storage = entry.value_ptr.*;
+                    const component_storage = TypeErasedComponentStorage.cast(type_erased_storage.ptr, Component);
+                    for (component_storage.components.items) |component| {
+                        try buffer.append(component);
+                    }
+                }
+            }
+        }
+
+        // copy buffered values into iterator
+        return QueryIterator(Component).init(buffer.items);
+    }
 };
+
+pub fn QueryIterator(comptime Component: type) type {
+    return struct {
+        const Self = @This();
+
+        values: []Component,
+        value_ptr: usize = 0,
+
+        pub fn init(data: []Component) Self {
+            return Self{
+                .values = data,
+                .value_ptr = 0,
+            };
+        }
+
+        pub fn next(self: *Self) ?Component {
+            if (self.value_ptr < self.values.len) {
+                const next_val = self.values[self.value_ptr];
+                self.value_ptr += 1;
+                return next_val;
+            }
+            return null;
+        }
+    };
+}

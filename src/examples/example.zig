@@ -13,7 +13,7 @@ pub fn main() !void {
     defer registry.deinit();
 
     const player = try registry.createEntity();
-    std.debug.print("created player!\n", .{});
+    std.debug.print("created player! (id = {})\n", .{player});
 
     const Name = []const u8;
     try registry.addComponent(player, @as(Name, "Jane"));
@@ -54,6 +54,15 @@ pub fn main() !void {
         std.debug.print("player position: {any}\n", .{position});
     }
 
-    try registry.destroyEntity(player);
-    std.debug.print("removed player!\n", .{});
+    // QUERY EXPERIMENTS //
+
+    var positions = try registry.query(Position);
+    while (positions.next()) |position| {
+        std.debug.print("Position: {any}\n", .{position});
+    }
+
+    ///////////////////////
+
+    const found_and_removed = try registry.destroyEntity(player);
+    std.debug.print("removed player: {}\n", .{found_and_removed});
 }

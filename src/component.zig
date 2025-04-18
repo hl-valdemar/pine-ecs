@@ -38,7 +38,7 @@ pub fn makeVTable(comptime Component: type) ComponentVTable {
         }).func,
         .createEmpty = (struct {
             fn func(allocator: Allocator) error{OutOfMemory}!TypeErasedComponentStorage {
-                // Creates a new empty storage of Component type
+                // create a new empty storage of component type
                 const component_ptr = try allocator.create(ComponentStorage(Component));
                 component_ptr.* = ComponentStorage(Component).init(allocator);
 
