@@ -7,6 +7,8 @@ pub const ComponentVTable = struct {
     swapRemove: *const fn (*anyopaque, usize) void,
     copy: *const fn (*anyopaque, *anyopaque, usize, usize) Allocator.Error!void,
     createEmpty: *const fn (Allocator) error{OutOfMemory}!TypeErasedComponentStorage,
+
+    getComponentPtr: *const fn (*anyopaque, usize) *anyopaque,
 };
 
 pub fn makeVTable(comptime Component: type) ComponentVTable {
@@ -49,6 +51,12 @@ pub fn makeVTable(comptime Component: type) ComponentVTable {
                 };
             }
         }).func,
+        .getComponentPtr = (struct {
+            fn func(ptr: *anyopaque, idx: usize) *anyopaque {
+                const storage = TypeErasedComponentStorage.cast(ptr, Component);
+                return &storage.components.items[idx];
+            }
+        }).func,
     };
 }
 
@@ -82,6 +90,10 @@ pub const TypeErasedComponentStorage = struct {
 
     pub fn cloneType(self: TypeErasedComponentStorage, allocator: Allocator) !TypeErasedComponentStorage {
         return self.vtable.createEmpty(allocator);
+    }
+
+    pub fn getComponentPtr(self: *const TypeErasedComponentStorage, idx: usize) *anyopaque {
+        return self.vtable.getComponentPtr(self.ptr, idx);
     }
 
     /// Cast a type erased component storage to a ComponentStorage(Component) of the given component type.

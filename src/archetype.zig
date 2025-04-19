@@ -9,7 +9,7 @@ const TypeErasedComponentStorage = pecs.TypeErasedComponentStorage;
 pub const ArchetypeHashType = u64;
 
 pub const Archetype = struct {
-    pub const EMPTY_ARCHETYPE_HASH: ArchetypeHashType = 0;
+    pub const VOID_ARCHETYPE_HASH: ArchetypeHashType = 0;
 
     const RemoveResult = struct {
         removed_id: EntityID,
@@ -33,10 +33,10 @@ pub const Archetype = struct {
             .allocator = allocator,
             .entities = std.ArrayList(EntityID).init(allocator),
             .components = std.StringArrayHashMap(TypeErasedComponentStorage).init(allocator),
-            .hash = EMPTY_ARCHETYPE_HASH,
+            .hash = VOID_ARCHETYPE_HASH,
         };
 
-        archetype.hash = EMPTY_ARCHETYPE_HASH;
+        archetype.hash = VOID_ARCHETYPE_HASH;
 
         return archetype;
     }

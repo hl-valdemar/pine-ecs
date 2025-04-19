@@ -4,6 +4,8 @@ const pecs = @import("root.zig");
 const Archetype = pecs.Archetype;
 const ArchetypeHashType = pecs.ArchetypeHashType;
 const TypeErasedComponentStorage = pecs.TypeErasedComponentStorage;
+const QueryIterator = pecs.QueryIterator;
+const EntityView = pecs.EntityView;
 
 const Allocator = std.mem.Allocator;
 
@@ -23,6 +25,10 @@ const RegistryError = error{
     InternalInconsistency,
 };
 
+pub const RegistryConfig = struct {
+    remove_empty_archetypes: bool = false,
+};
+
 pub const Registry = struct {
     allocator: Allocator,
 
@@ -32,11 +38,14 @@ pub const Registry = struct {
     /// Maps an archetype hash to its corresponding archetype.
     archetypes: std.AutoHashMap(ArchetypeHashType, Archetype),
 
-    pub fn init(allocator: Allocator) !Registry {
+    remove_empty_archetypes: bool,
+
+    pub fn init(allocator: Allocator, config: RegistryConfig) !Registry {
         var registry = Registry{
             .allocator = allocator,
             .entities = std.AutoHashMap(EntityID, EntityPointer).init(allocator),
             .archetypes = std.AutoHashMap(ArchetypeHashType, Archetype).init(allocator),
+            .remove_empty_archetypes = config.remove_empty_archetypes,
         };
 
         errdefer {
@@ -45,8 +54,8 @@ pub const Registry = struct {
         }
 
         // the empty archetype should always be present
-        const empty_archetype = Archetype.init(allocator);
-        try registry.archetypes.put(empty_archetype.hash, empty_archetype);
+        const void_archetype = Archetype.init(allocator);
+        try registry.archetypes.put(void_archetype.hash, void_archetype);
 
         return registry;
     }
@@ -63,7 +72,7 @@ pub const Registry = struct {
 
     pub fn createEntity(self: *Registry) !EntityID {
         const new_id = self.entities.count();
-        const empty_archetype = self.archetypes.getPtr(Archetype.EMPTY_ARCHETYPE_HASH).?;
+        const empty_archetype = self.archetypes.getPtr(Archetype.VOID_ARCHETYPE_HASH).?;
 
         // add new entity to archetype's list
         const entity_idx = empty_archetype.entities.items.len;
@@ -234,67 +243,88 @@ pub const Registry = struct {
         const remove_result = prev_archetype.remove(entity_ptr.entity_idx);
         std.debug.assert(remove_result.removed_id == entity);
 
+        // remove the archetype if no entities are left in it
+        if (self.remove_empty_archetypes
+            //
+        and prev_archetype.entities.items.len == 0
+            //
+        and prev_archetype.hash != Archetype.VOID_ARCHETYPE_HASH
+            //
+        ) {
+            if (self.archetypes.fetchRemove(prev_archetype.hash)) |entry| {
+                var archetype = entry.value;
+                archetype.deinit();
+            } else @panic("Failed to remove empty archetype!\n"); // this shouldn't happen...
+        }
+
         try handleSwappedEntity(self, remove_result.swapped_id, entity_ptr.entity_idx);
     }
 
-    pub fn query(self: *Registry, comptime Component: type) !QueryIterator(Component) {
-        // buffer for collecting values for the iterator
-        var buffer = std.ArrayList(*Component).init(self.allocator);
+    /// Query for entities that have all specified component types
+    pub fn query(self: *Registry, comptime component_types: anytype) !QueryIterator(component_types) {
+        const ComponentTuple = @TypeOf(component_types);
+        const component_info = @typeInfo(ComponentTuple);
+
+        if (component_info != .@"struct" or !component_info.@"struct".is_tuple) {
+            return error.InvalidQuery;
+        }
+
+        // verify each element in the tuple is a type
+        inline for (0..component_info.@"struct".fields.len) |i| {
+            const field_name = component_info.@"struct".fields[i].name;
+            if (@TypeOf(@field(component_types, field_name)) != type) {
+                return error.InvalidQuery;
+            }
+        }
+
+        const component_count = component_info.@"struct".fields.len;
+
+        // buffer to collect entity views
+        var buffer = std.ArrayList(EntityView(component_types)).init(self.allocator);
         defer buffer.deinit();
 
-        // look for the given component type in all archetypes
+        // store component type names for matching
+        var component_names: [component_count][]const u8 = undefined;
+        inline for (0..component_count) |i| {
+            const field_name = component_info.@"struct".fields[i].name;
+            const ComponentType = @field(component_types, field_name);
+            component_names[i] = @typeName(ComponentType);
+        }
+
+        // find archetypes that contain all required components
         var archetype_iter = self.archetypes.valueIterator();
-        while (archetype_iter.next()) |archetype| {
-
-            // look for the component type among components of each archetype
-            var component_iter = archetype.components.iterator();
-            while (component_iter.next()) |entry| {
-
-                // if component types match, add all components of the type to the buffer
-                const component_name = entry.key_ptr.*;
-                if (std.mem.eql(u8, component_name, @typeName(Component))) {
-                    const type_erased_storage = entry.value_ptr.*;
-                    const component_storage = TypeErasedComponentStorage.cast(type_erased_storage.ptr, Component);
-                    for (component_storage.components.items) |*component| {
-                        try buffer.append(component);
-                    }
+        next_archetype: while (archetype_iter.next()) |archetype| {
+            // skip archetypes that don't have all required components
+            for (component_names) |component_name| {
+                if (!archetype.components.contains(component_name)) {
+                    continue :next_archetype;
                 }
             }
+
+            // archetype has all components, process its entities
+            for (archetype.entities.items, 0..) |entity_id, entity_idx| {
+                var component_ptrs: [component_count]*anyopaque = undefined;
+
+                // fill component pointers array
+                inline for (0..component_count) |i| {
+                    const component_name = component_names[i];
+
+                    // get component storage for this type
+                    const storage_ptr = archetype.components.get(component_name).?;
+
+                    // get a raw pointer to the component
+                    component_ptrs[i] = storage_ptr.getComponentPtr(entity_idx);
+                }
+
+                // create entity view with the component pointers
+                try buffer.append(EntityView(component_types){
+                    .registry = self,
+                    .entity_id = entity_id,
+                    .component_ptrs = component_ptrs,
+                });
+            }
         }
 
-        // copy buffered values into iterator
-        return try QueryIterator(Component).init(self.allocator, buffer.items);
+        return try QueryIterator(component_types).init(self.allocator, self, buffer.items);
     }
 };
-
-pub fn QueryIterator(comptime Component: type) type {
-    return struct {
-        const Self = @This();
-
-        allocator: Allocator,
-        values: []*Component,
-        value_ptr: usize = 0,
-
-        pub fn init(allocator: Allocator, data: []*Component) !Self {
-            return Self{
-                .allocator = allocator,
-                .values = try allocator.dupe(*Component, data),
-                .value_ptr = 0,
-            };
-        }
-
-        pub fn next(self: *Self) ?*Component {
-            if (self.value_ptr < self.values.len) {
-                const next_val = self.values[self.value_ptr];
-                self.value_ptr += 1;
-
-                // free the value array if the value pointer exceeds the length
-                if (self.value_ptr == self.values.len)
-                    self.allocator.free(self.values);
-
-                return next_val;
-            }
-            return null;
-        }
-    };
-}

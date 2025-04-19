@@ -1,8 +1,8 @@
 const std = @import("std");
 
-const ecs = @import("pecs");
-const Registry = ecs.Registry;
-const TypeErasedComponentStorage = ecs.TypeErasedComponentStorage;
+const pecs = @import("pecs");
+const Registry = pecs.Registry;
+const TypeErasedComponentStorage = pecs.TypeErasedComponentStorage;
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -10,39 +10,84 @@ pub fn main() !void {
     defer _ = gpa.deinit();
 
     const Position = struct { x: u32, y: u32 };
-    const Health = u8;
-    const Name = []const u8;
+    const Health = struct { value: u8 };
+    const Name = struct { value: []const u8 };
 
-    var registry = try Registry.init(allocator);
+    var registry = try Registry.init(allocator, .{ .remove_empty_archetypes = true });
     defer registry.deinit();
 
     const player = try registry.createEntity();
     defer _ = registry.destroyEntity(player) catch |err| std.debug.print("Failed to remove player entity: {}", .{err});
-    try registry.addComponent(player, @as(Name, "Jane"));
-    try registry.addComponent(player, @as(Health, 10));
+    try registry.addComponent(player, Name{ .value = "Jane" });
+    try registry.addComponent(player, Health{ .value = 10 });
     try registry.addComponent(player, Position{ .x = 2, .y = 5 });
 
     const enemy = try registry.createEntity();
     defer _ = registry.destroyEntity(enemy) catch |err| std.debug.print("Failed to remove enemy entity: {}", .{err});
-    try registry.addComponent(enemy, @as(Name, "John"));
-    try registry.addComponent(enemy, @as(Health, 3));
+    try registry.addComponent(enemy, Health{ .value = 3 });
     try registry.addComponent(enemy, Position{ .x = 7, .y = 9 });
 
-    // QUERY EXPERIMENTS //
+    var archetypes_iter = registry.archetypes.iterator();
+    var archetypes_count: usize = 0;
+    while (archetypes_iter.next()) |_| archetypes_count += 1;
+    std.debug.print("\n", .{});
+    std.debug.print("Archetypes: {}\n", .{archetypes_count});
 
-    std.debug.print("All position components before modification:\n", .{});
-    var positions = try registry.query(Position);
-    while (positions.next()) |position| {
-        std.debug.print("  {any}\n", .{position});
-        position.x += 10;
-        position.y += 10;
+    archetypes_iter = registry.archetypes.iterator();
+    while (archetypes_iter.next()) |entry| {
+        std.debug.print("\n", .{});
+        std.debug.print("  Archetype hash: {}\n", .{entry.key_ptr.*});
+        std.debug.print("  Archetype entity count: {}\n", .{entry.value_ptr.entities.items.len});
+
+        const component_keys = entry.value_ptr.components.keys();
+        std.debug.print("  Archetype component count: {}\n", .{component_keys.len});
+        for (component_keys) |key| {
+            std.debug.print("  ∟ {s}\n", .{key});
+        }
     }
 
-    std.debug.print("All position components after modification:\n", .{});
-    positions = try registry.query(Position);
-    while (positions.next()) |position| {
-        std.debug.print("  {any}\n", .{position});
+    var query_result_0 = try registry.query(.{Name});
+
+    std.debug.print("\n", .{});
+    std.debug.print("Query result: {}\n", .{query_result_0.views.len});
+
+    while (query_result_0.next()) |entity| {
+        const name = entity.get(Name);
+
+        std.debug.print("\n", .{});
+        std.debug.print("  Entity ID: {}\n", .{entity.id()});
+        std.debug.print("  ∟ Health: {any}\n", .{name});
     }
 
-    ///////////////////////
+    var query_result_1 = try registry.query(.{ Position, Health });
+
+    std.debug.print("\n", .{});
+    std.debug.print("Query result: {}\n", .{query_result_1.views.len});
+
+    while (query_result_1.next()) |entity| {
+        const position = entity.get(Position);
+        const health = entity.get(Health);
+
+        std.debug.print("\n", .{});
+        std.debug.print("  Entity ID: {}\n", .{entity.id()});
+        std.debug.print("  ∟ Position: {any}\n", .{position});
+        std.debug.print("  ∟ Health: {any}\n", .{health});
+    }
+
+    var query_result_2 = try registry.query(.{ Name, Position, Health });
+
+    std.debug.print("\n", .{});
+    std.debug.print("Query result: {}\n", .{query_result_2.views.len});
+
+    while (query_result_2.next()) |entity| {
+        const name = entity.get(Name);
+        const position = entity.get(Position);
+        const health = entity.get(Health);
+
+        std.debug.print("\n", .{});
+        std.debug.print("  Entity ID: {}\n", .{entity.id()});
+        std.debug.print("  ∟ Health: {any}\n", .{name});
+        std.debug.print("  ∟ Position: {any}\n", .{position});
+        std.debug.print("  ∟ Health: {any}\n", .{health});
+    }
 }
