@@ -6,6 +6,7 @@ const ArchetypeHashType = pecs.ArchetypeHashType;
 const TypeErasedComponentStorage = pecs.TypeErasedComponentStorage;
 const QueryIterator = pecs.QueryIterator;
 const EntityView = pecs.EntityView;
+const SystemManager = pecs.SystemManager;
 
 const Allocator = std.mem.Allocator;
 
@@ -38,6 +39,8 @@ pub const Registry = struct {
     /// Maps an archetype hash to its corresponding archetype.
     archetypes: std.AutoHashMap(ArchetypeHashType, Archetype),
 
+    system_manager: SystemManager,
+
     remove_empty_archetypes: bool,
 
     pub fn init(allocator: Allocator, config: RegistryConfig) !Registry {
@@ -45,6 +48,7 @@ pub const Registry = struct {
             .allocator = allocator,
             .entities = std.AutoHashMap(EntityID, EntityPointer).init(allocator),
             .archetypes = std.AutoHashMap(ArchetypeHashType, Archetype).init(allocator),
+            .system_manager = SystemManager.init(allocator),
             .remove_empty_archetypes = config.remove_empty_archetypes,
         };
 
@@ -68,6 +72,8 @@ pub const Registry = struct {
             archetype.deinit();
         }
         self.archetypes.deinit();
+
+        self.system_manager.deinit();
     }
 
     pub fn createEntity(self: *Registry) !EntityID {
@@ -326,5 +332,13 @@ pub const Registry = struct {
         }
 
         return try QueryIterator(component_types).init(self.allocator, self, buffer.items);
+    }
+
+    pub fn registerSystem(self: *Registry, comptime SystemType: type) !void {
+        try self.system_manager.registerSystem(SystemType);
+    }
+
+    pub fn updateSystems(self: *Registry) void {
+        self.system_manager.updateAll(self);
     }
 };

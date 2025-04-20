@@ -1,19 +1,60 @@
 const std = @import("std");
 
+const Allocator = std.mem.Allocator;
+
 const pecs = @import("pecs");
-const Registry = pecs.Registry;
-const TypeErasedComponentStorage = pecs.TypeErasedComponentStorage;
+
+// example components
+const Position = struct { x: u32, y: u32 };
+const Health = struct { value: u8 };
+const Name = struct { value: []const u8 };
+
+// example movement system
+const MovementSystem = struct {
+    allocator: Allocator,
+
+    pub fn init(alloc: Allocator) !MovementSystem {
+        return MovementSystem{
+            .allocator = alloc,
+        };
+    }
+
+    pub fn deinit(self: *MovementSystem) void {
+        _ = self;
+    }
+
+    pub fn update(self: *MovementSystem, registry: *pecs.Registry) void {
+        _ = self;
+
+        var query_result = registry.query(.{ Position, Name }) catch |err| {
+            std.debug.print("Failed to query entities: {}\n", .{err});
+            return;
+        };
+
+        while (query_result.next()) |entity| {
+            const position = entity.get(Position);
+            const name = entity.get(Name);
+
+            if (position) |p| {
+                p.x += 2;
+                p.y += 5;
+            }
+
+            if (name) |n| {
+                std.debug.print("\nSystem log: {s} moved!\n", .{n.value});
+            }
+        }
+    }
+};
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
-    const Position = struct { x: u32, y: u32 };
-    const Health = struct { value: u8 };
-    const Name = struct { value: []const u8 };
+    // SETUP //
 
-    var registry = try Registry.init(allocator, .{ .remove_empty_archetypes = true });
+    var registry = try pecs.Registry.init(allocator, .{ .remove_empty_archetypes = true });
     defer registry.deinit();
 
     const player = try registry.createEntity();
@@ -46,10 +87,15 @@ pub fn main() !void {
         }
     }
 
+    // QUERIES //
+
+    std.debug.print("\n", .{});
+    std.debug.print("NOTE: Before System Updates\n", .{});
+
     var query_result_0 = try registry.query(.{Name});
 
     std.debug.print("\n", .{});
-    std.debug.print("Query result: {}\n", .{query_result_0.views.len});
+    std.debug.print("Query .{{ Name }}, results: {}\n", .{query_result_0.views.len});
 
     while (query_result_0.next()) |entity| {
         const name = entity.get(Name);
@@ -62,7 +108,7 @@ pub fn main() !void {
     var query_result_1 = try registry.query(.{ Position, Health });
 
     std.debug.print("\n", .{});
-    std.debug.print("Query result: {}\n", .{query_result_1.views.len});
+    std.debug.print("Query .{{ Position, Health }}, results: {}\n", .{query_result_1.views.len});
 
     while (query_result_1.next()) |entity| {
         const position = entity.get(Position);
@@ -77,7 +123,7 @@ pub fn main() !void {
     var query_result_2 = try registry.query(.{ Name, Position, Health });
 
     std.debug.print("\n", .{});
-    std.debug.print("Query result: {}\n", .{query_result_2.views.len});
+    std.debug.print("Query .{{ Name, Position, Health }}, results: {}\n", .{query_result_2.views.len});
 
     while (query_result_2.next()) |entity| {
         const name = entity.get(Name);
@@ -89,5 +135,29 @@ pub fn main() !void {
         std.debug.print("  ∟ Health: {any}\n", .{name});
         std.debug.print("  ∟ Position: {any}\n", .{position});
         std.debug.print("  ∟ Health: {any}\n", .{health});
+    }
+
+    // SYSTEMS //
+
+    registry.registerSystem(MovementSystem) catch |err| {
+        std.debug.print("Failed to register system: {}\n", .{err});
+    };
+
+    registry.updateSystems();
+
+    std.debug.print("\n", .{});
+    std.debug.print("NOTE: After System Updates\n", .{});
+
+    var query_result_3 = try registry.query(.{Position});
+
+    std.debug.print("\n", .{});
+    std.debug.print("Query .{{ Position }}, results: {}\n", .{query_result_3.views.len});
+
+    while (query_result_3.next()) |entity| {
+        const position = entity.get(Position);
+
+        std.debug.print("\n", .{});
+        std.debug.print("  Entity ID: {}\n", .{entity.id()});
+        std.debug.print("  ∟ Position: {any}\n", .{position});
     }
 }
