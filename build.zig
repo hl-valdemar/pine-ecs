@@ -8,12 +8,20 @@ pub fn build(b: *std.Build) void {
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
     // for restricting supported target set are available.
-    // const target = b.standardTargetOptions(.{});
+    const target = b.standardTargetOptions(.{});
 
     // Standard optimization options allow the person running `zig build` to select
     // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
     // set a preferred release mode, allowing the user to decide how to optimize.
-    // const optimize = b.standardOptimizeOption(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    _ = target;
+    _ = optimize;
+
+    // expose the module to the world
+    _ = b.addModule("pecs", .{
+        .root_source_file = b.path("src/root.zig"),
+    });
 
     // // This creates a "module", which represents a collection of source files alongside
     // // some compilation options, such as optimization mode and linked system libraries.
@@ -113,11 +121,6 @@ pub fn build(b: *std.Build) void {
     // const test_step = b.step("test", "Run unit tests");
     // test_step.dependOn(&run_lib_unit_tests.step);
     // test_step.dependOn(&run_exe_unit_tests.step);
-
-    /////////////////////////////////
-
-    // expose the module to the world
-    _ = b.addModule("pecs", .{
-        .root_source_file = b.path("src/root.zig"),
-    });
+    //
+    // /////////////////////////////////
 }
