@@ -149,10 +149,10 @@ pub const Registry = struct {
         }
 
         // add storage for the new component type
-        const new_erased_storage = try TypeErasedComponentStorage.init(allocator, ComponentType);
-        errdefer new_erased_storage.deinit();
+        const new_type_erased_storage = try TypeErasedComponentStorage.init(allocator, ComponentType);
+        errdefer new_type_erased_storage.deinit();
 
-        try new_archetype.components.put(component_type_name, new_erased_storage);
+        try new_archetype.components.put(component_type_name, new_type_erased_storage);
 
         return new_archetype;
     }
@@ -167,12 +167,12 @@ pub const Registry = struct {
         var prev_arch_components_iter = prev_archetype.components.iterator();
         while (prev_arch_components_iter.next()) |entry| {
             const component_type_name = entry.key_ptr.*;
-            const prev_erased_storage = entry.value_ptr;
-            const target_erased_storage = target_archetype.components.get(component_type_name).?;
+            const prev_type_erased_storage = entry.value_ptr;
+            const target_type_erased_storage = target_archetype.components.get(component_type_name).?;
 
-            try prev_erased_storage.copy(
+            try prev_type_erased_storage.copy(
                 src_entity_idx,
-                target_erased_storage,
+                target_type_erased_storage,
                 dst_entity_idx,
             );
         }

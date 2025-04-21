@@ -37,6 +37,10 @@ pub const TypeErasedSystem = struct {
     pub fn update(self: TypeErasedSystem, registry: *Registry) void {
         self.vtable.update(self.ptr, registry);
     }
+
+    pub fn cast(type_erased_system_ptr: *anyopaque, comptime SystemType: type) *SystemType {
+        return @alignCast(@ptrCast(type_erased_system_ptr));
+    }
 };
 
 /// Virtual function table for type-erased systems.
@@ -46,18 +50,21 @@ pub const SystemVTable = struct {
 };
 
 pub fn makeSystemVTable(comptime SystemType: type) SystemVTable {
-    return SystemVTable{ .deinit = (struct {
-        fn func(allocator: Allocator, type_erased_system_ptr: *anyopaque) void {
-            const system: *SystemType = @alignCast(@ptrCast(type_erased_system_ptr));
-            system.deinit();
-            allocator.destroy(system);
-        }
-    }).func, .update = (struct {
-        fn func(type_erased_system_ptr: *anyopaque, registry: *Registry) void {
-            const system: *SystemType = @alignCast(@ptrCast(type_erased_system_ptr));
-            system.update(registry);
-        }
-    }).func };
+    return SystemVTable{
+        .deinit = (struct {
+            fn func(allocator: Allocator, type_erased_system_ptr: *anyopaque) void {
+                const system = TypeErasedSystem.cast(type_erased_system_ptr, SystemType);
+                system.deinit();
+                allocator.destroy(system);
+            }
+        }).func,
+        .update = (struct {
+            fn func(type_erased_system_ptr: *anyopaque, registry: *Registry) void {
+                const system = TypeErasedSystem.cast(type_erased_system_ptr, SystemType);
+                system.update(registry);
+            }
+        }).func,
+    };
 }
 
 pub const SystemManager = struct {
