@@ -11,7 +11,7 @@ pub const ComponentVTable = struct {
     getComponentPtr: *const fn (*anyopaque, usize) *anyopaque,
 };
 
-pub fn makeVTable(comptime Component: type) ComponentVTable {
+pub fn makeComponentVTable(comptime Component: type) ComponentVTable {
     return ComponentVTable{
         .deinit = (struct {
             fn func(alloc: Allocator, type_erased_components_ptr: *anyopaque) void {
@@ -47,7 +47,7 @@ pub fn makeVTable(comptime Component: type) ComponentVTable {
                 return TypeErasedComponentStorage{
                     .allocator = allocator,
                     .ptr = components_ptr,
-                    .vtable = &comptime makeVTable(Component),
+                    .vtable = &comptime makeComponentVTable(Component),
                 };
             }
         }).func,
@@ -72,7 +72,7 @@ pub const TypeErasedComponentStorage = struct {
         return TypeErasedComponentStorage{
             .allocator = allocator,
             .ptr = components_ptr,
-            .vtable = &comptime makeVTable(Component),
+            .vtable = &comptime makeComponentVTable(Component),
         };
     }
 

@@ -102,7 +102,9 @@ pub fn main() !void {
 
         std.debug.print("\n", .{});
         std.debug.print("  Entity ID: {}\n", .{entity.id()});
-        std.debug.print("  ∟ Health: {any}\n", .{name});
+        if (name) |n| {
+            std.debug.print("  ∟ Name: '{s}'\n", .{n.value});
+        }
     }
 
     var query_result_1 = try registry.query(.{ Position, Health });
@@ -116,8 +118,12 @@ pub fn main() !void {
 
         std.debug.print("\n", .{});
         std.debug.print("  Entity ID: {}\n", .{entity.id()});
-        std.debug.print("  ∟ Position: {any}\n", .{position});
-        std.debug.print("  ∟ Health: {any}\n", .{health});
+        if (position) |p| {
+            std.debug.print("  ∟ Position: {any}\n", .{p});
+        }
+        if (health) |h| {
+            std.debug.print("  ∟ Health: {any}\n", .{h});
+        }
     }
 
     var query_result_2 = try registry.query(.{ Name, Position, Health });
@@ -132,9 +138,15 @@ pub fn main() !void {
 
         std.debug.print("\n", .{});
         std.debug.print("  Entity ID: {}\n", .{entity.id()});
-        std.debug.print("  ∟ Health: {any}\n", .{name});
-        std.debug.print("  ∟ Position: {any}\n", .{position});
-        std.debug.print("  ∟ Health: {any}\n", .{health});
+        if (name) |n| {
+            std.debug.print("  ∟ Name: '{s}'\n", .{n.value});
+        }
+        if (position) |p| {
+            std.debug.print("  ∟ Position: {any}\n", .{p});
+        }
+        if (health) |h| {
+            std.debug.print("  ∟ Health: {any}\n", .{h});
+        }
     }
 
     // SYSTEMS //
@@ -158,6 +170,8 @@ pub fn main() !void {
 
         std.debug.print("\n", .{});
         std.debug.print("  Entity ID: {}\n", .{entity.id()});
-        std.debug.print("  ∟ Position: {any}\n", .{position});
+        if (position) |p| {
+            std.debug.print("  ∟ Position: {any}\n", .{p});
+        }
     }
 }
