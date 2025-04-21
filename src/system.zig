@@ -5,14 +5,30 @@ const Allocator = std.mem.Allocator;
 const pecs = @import("root.zig");
 const Registry = pecs.Registry;
 
-// /// System interface that defines the core functionality all systems must implement.
-// pub fn SystemInterface(comptime Self: type) type {
-//     return struct {
-//         pub const init = Self.init;
-//         pub const deinit = Self.deinit;
-//         pub const update = Self.update;
-//     };
-// }
+pub fn SystemTrait(comptime SystemType: type) type {
+    return struct {
+        pub fn validate() void {
+            // Check if required functions exist with correct signatures
+            if (!@hasDecl(SystemType, "init") or
+                @TypeOf(SystemType.init) != fn (Allocator) anyerror!SystemType)
+            {
+                @compileError("System type must have init(Allocator) anyerror!SystemType");
+            }
+
+            if (!@hasDecl(SystemType, "deinit") or
+                @TypeOf(SystemType.deinit) != fn (*SystemType) void)
+            {
+                @compileError("System type must have deinit(*Self) void");
+            }
+
+            if (!@hasDecl(SystemType, "update") or
+                @TypeOf(SystemType.update) != fn (*SystemType, *Registry) anyerror!void)
+            {
+                @compileError("System type must have update(*Self, *Registry) anyerror!void");
+            }
+        }
+    };
+}
 
 pub const TypeErasedSystem = struct {
     allocator: Allocator,
@@ -20,6 +36,8 @@ pub const TypeErasedSystem = struct {
     vtable: *const SystemVTable,
 
     pub fn init(allocator: Allocator, comptime SystemType: type) !TypeErasedSystem {
+        comptime SystemTrait(SystemType).validate();
+
         const system_ptr = try allocator.create(SystemType);
         system_ptr.* = try SystemType.init(allocator);
 
@@ -34,8 +52,8 @@ pub const TypeErasedSystem = struct {
         self.vtable.deinit(self.allocator, self.ptr);
     }
 
-    pub fn update(self: TypeErasedSystem, registry: *Registry) void {
-        self.vtable.update(self.ptr, registry);
+    pub fn update(self: TypeErasedSystem, registry: *Registry) anyerror!void {
+        try self.vtable.update(self.ptr, registry);
     }
 
     pub fn cast(type_erased_system_ptr: *anyopaque, comptime SystemType: type) *SystemType {
@@ -46,7 +64,7 @@ pub const TypeErasedSystem = struct {
 /// Virtual function table for type-erased systems.
 pub const SystemVTable = struct {
     deinit: *const fn (Allocator, *anyopaque) void,
-    update: *const fn (*anyopaque, *Registry) void,
+    update: *const fn (*anyopaque, *Registry) anyerror!void,
 };
 
 pub fn makeSystemVTable(comptime SystemType: type) SystemVTable {
@@ -59,9 +77,9 @@ pub fn makeSystemVTable(comptime SystemType: type) SystemVTable {
             }
         }).func,
         .update = (struct {
-            fn func(type_erased_system_ptr: *anyopaque, registry: *Registry) void {
+            fn func(type_erased_system_ptr: *anyopaque, registry: *Registry) anyerror!void {
                 const system = TypeErasedSystem.cast(type_erased_system_ptr, SystemType);
-                system.update(registry);
+                try system.update(registry);
             }
         }).func,
     };
@@ -95,7 +113,9 @@ pub const SystemManager = struct {
     /// Update all systems.
     pub fn updateAll(self: *SystemManager, registry: *Registry) void {
         for (self.systems.items) |system| {
-            system.update(registry);
+            system.update(registry) catch |err| {
+                std.debug.print("Failed to update {s}: {}\n", .{ @typeName(@TypeOf(system)), err });
+            };
         }
     }
 };

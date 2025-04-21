@@ -250,13 +250,10 @@ pub const Registry = struct {
         std.debug.assert(remove_result.removed_id == entity);
 
         // remove the archetype if no entities are left in it
-        if (self.remove_empty_archetypes
-            //
-        and prev_archetype.entities.items.len == 0
-            //
-        and prev_archetype.hash != Archetype.VOID_ARCHETYPE_HASH
-            //
-        ) {
+        if (self.remove_empty_archetypes and
+            prev_archetype.entities.items.len == 0 and
+            prev_archetype.hash != Archetype.VOID_ARCHETYPE_HASH)
+        {
             if (self.archetypes.fetchRemove(prev_archetype.hash)) |entry| {
                 var archetype = entry.value;
                 archetype.deinit();

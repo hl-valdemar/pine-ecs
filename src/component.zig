@@ -6,7 +6,7 @@ pub const ComponentVTable = struct {
     deinit: *const fn (Allocator, *anyopaque) void,
     swapRemove: *const fn (*anyopaque, usize) void,
     copy: *const fn (*anyopaque, *anyopaque, usize, usize) Allocator.Error!void,
-    createEmpty: *const fn (Allocator) error{OutOfMemory}!TypeErasedComponentStorage,
+    createEmpty: *const fn (Allocator) Allocator.Error!TypeErasedComponentStorage,
 
     getComponentPtr: *const fn (*anyopaque, usize) *anyopaque,
 };
@@ -39,7 +39,7 @@ pub fn makeComponentVTable(comptime Component: type) ComponentVTable {
             }
         }).func,
         .createEmpty = (struct {
-            fn func(allocator: Allocator) error{OutOfMemory}!TypeErasedComponentStorage {
+            fn func(allocator: Allocator) Allocator.Error!TypeErasedComponentStorage {
                 // create a new empty storage of component type
                 const components_ptr = try allocator.create(ComponentStorage(Component));
                 components_ptr.* = ComponentStorage(Component).init(allocator);

@@ -13,7 +13,7 @@ const Name = struct { value: []const u8 };
 const MovementSystem = struct {
     allocator: Allocator,
 
-    pub fn init(alloc: Allocator) !MovementSystem {
+    pub fn init(alloc: Allocator) anyerror!MovementSystem {
         return MovementSystem{
             .allocator = alloc,
         };
@@ -23,7 +23,7 @@ const MovementSystem = struct {
         _ = self;
     }
 
-    pub fn update(self: *MovementSystem, registry: *pecs.Registry) void {
+    pub fn update(self: *MovementSystem, registry: *pecs.Registry) anyerror!void {
         _ = self;
 
         var query_result = registry.query(.{ Position, Name }) catch |err| {
