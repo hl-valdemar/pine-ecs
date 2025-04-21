@@ -49,7 +49,7 @@ pub fn build(b: *std.Build) void {
     // for actually invoking the compiler.
     const lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "pecs",
+        .name = "_pecs",
         .root_module = lib_mod,
     });
 
@@ -113,4 +113,11 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
     test_step.dependOn(&run_exe_unit_tests.step);
+
+    /////////////////////////////////
+
+    // expose the module to the world
+    _ = b.addModule("pecs", .{
+        .root_source_file = b.path("src/root.zig"),
+    });
 }
