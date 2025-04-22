@@ -98,11 +98,18 @@ pub const SystemManager = struct {
         };
     }
 
-    pub fn deinit(self: *const SystemManager) void {
+    pub fn deinit(self: *SystemManager) void {
+        // clean up all untagged systems
         for (self.untagged_systems.items) |system| {
             system.deinit();
         }
         self.untagged_systems.deinit();
+
+        // clean up all tagged systems
+        for (self.tagged_systems.values()) |system| {
+            system.deinit();
+        }
+        self.tagged_systems.deinit();
     }
 
     /// Register a system with the manager.
@@ -112,11 +119,59 @@ pub const SystemManager = struct {
         try self.untagged_systems.append(erased_system);
     }
 
-    /// Update all systems.
-    pub fn updateAll(self: *SystemManager, registry: *Registry) void {
+    pub fn registerTaggedSystem(self: *SystemManager, comptime SystemType: type, tag: []const u8) !void {
+        const type_erased_system = try TypeErasedSystem.init(self.allocator, SystemType);
+        errdefer type_erased_system.deinit();
+        try self.tagged_systems.put(tag, type_erased_system);
+    }
+
+    /// Update all systems with the given tag.
+    pub fn updateUntagged(self: *SystemManager, registry: *Registry) void {
+        // update all untagged systems
         for (self.untagged_systems.items) |system| {
             system.update(registry) catch |err| {
                 std.debug.print("Failed to update {s}: {}\n", .{ @typeName(@TypeOf(system)), err });
+            };
+        }
+    }
+
+    /// Update all systems with the given tag.
+    pub fn updateTagged(self: *SystemManager, registry: *Registry, target_tag: []const u8) void {
+        // update all tagged systems
+        var tagged_systems_iter = self.tagged_systems.iterator();
+        blk: while (tagged_systems_iter.next()) |entry| {
+            const this_tag = entry.key_ptr.*;
+            if (!std.mem.eql(u8, target_tag, this_tag)) continue :blk;
+
+            const system = entry.value_ptr;
+            system.update(registry) catch |err| {
+                std.debug.print(
+                    "Failed to update {s}, tag '{s}': {}\n",
+                    .{ @typeName(@TypeOf(system)), target_tag, err },
+                );
+            };
+        }
+    }
+
+    /// Update all systems.
+    pub fn updateAll(self: *SystemManager, registry: *Registry) void {
+        // update all untagged systems
+        for (self.untagged_systems.items) |system| {
+            system.update(registry) catch |err| {
+                std.debug.print("Failed to update {s}: {}\n", .{ @typeName(@TypeOf(system)), err });
+            };
+        }
+
+        // update all tagged systems
+        var tagged_systems_iter = self.tagged_systems.iterator();
+        while (tagged_systems_iter.next()) |entry| {
+            const tag = entry.key_ptr;
+            const system = entry.value_ptr;
+            system.update(registry) catch |err| {
+                std.debug.print(
+                    "Failed to update {s}, tag '{s}': {}\n",
+                    .{ @typeName(@TypeOf(system)), tag, err },
+                );
             };
         }
     }

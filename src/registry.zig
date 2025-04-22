@@ -335,7 +335,19 @@ pub const Registry = struct {
         try self.system_manager.registerSystem(SystemType);
     }
 
+    pub fn registerTaggedSystem(self: *Registry, comptime SystemType: type, tag: []const u8) !void {
+        try self.system_manager.registerTaggedSystem(SystemType, tag);
+    }
+
     pub fn updateSystems(self: *Registry) void {
         self.system_manager.updateAll(self);
+    }
+
+    pub fn updateSystemsUntagged(self: *Registry) void {
+        self.system_manager.updateUntagged(self);
+    }
+
+    pub fn updateSystemsTagged(self: *Registry, tag: []const u8) void {
+        self.system_manager.updateTagged(self, tag);
     }
 };

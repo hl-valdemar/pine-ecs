@@ -151,21 +151,45 @@ pub fn main() !void {
 
     // SYSTEMS //
 
-    registry.registerSystem(MovementSystem) catch |err| {
-        std.debug.print("Failed to register system: {}\n", .{err});
+    // registry.registerSystem(MovementSystem) catch |err| {
+    //     std.debug.print("Failed to register system: {}\n", .{err});
+    // };
+    //
+    // registry.updateSystems();
+    //
+    // std.debug.print("\n", .{});
+    // std.debug.print("NOTE: After System Updates\n", .{});
+    //
+    // var query_result_3 = try registry.query(.{Position});
+    //
+    // std.debug.print("\n", .{});
+    // std.debug.print("Query .{{ Position }}, results: {}\n", .{query_result_3.views.len});
+    //
+    // while (query_result_3.next()) |entity| {
+    //     const position = entity.get(Position);
+    //
+    //     std.debug.print("\n", .{});
+    //     std.debug.print("  Entity ID: {}\n", .{entity.id()});
+    //     if (position) |p| {
+    //         std.debug.print("  ∟ Position: {any}\n", .{p});
+    //     }
+    // }
+
+    registry.registerTaggedSystem(MovementSystem, "init") catch |err| {
+        std.debug.print("Failed to register tagged system: {}\n", .{err});
     };
 
-    registry.updateSystems();
+    registry.updateSystemsTagged("ass");
 
     std.debug.print("\n", .{});
     std.debug.print("NOTE: After System Updates\n", .{});
 
-    var query_result_3 = try registry.query(.{Position});
+    var query_result_4 = try registry.query(.{Position});
 
     std.debug.print("\n", .{});
-    std.debug.print("Query .{{ Position }}, results: {}\n", .{query_result_3.views.len});
+    std.debug.print("Query .{{ Position }}, results: {}\n", .{query_result_4.views.len});
 
-    while (query_result_3.next()) |entity| {
+    while (query_result_4.next()) |entity| {
         const position = entity.get(Position);
 
         std.debug.print("\n", .{});
