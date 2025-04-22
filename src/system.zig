@@ -87,32 +87,34 @@ pub fn makeSystemVTable(comptime SystemType: type) SystemVTable {
 
 pub const SystemManager = struct {
     allocator: Allocator,
-    systems: std.ArrayList(TypeErasedSystem),
+    tagged_systems: std.StringArrayHashMap(TypeErasedSystem),
+    untagged_systems: std.ArrayList(TypeErasedSystem),
 
     pub fn init(allocator: Allocator) SystemManager {
         return SystemManager{
             .allocator = allocator,
-            .systems = std.ArrayList(TypeErasedSystem).init(allocator),
+            .tagged_systems = std.StringArrayHashMap(TypeErasedSystem).init(allocator),
+            .untagged_systems = std.ArrayList(TypeErasedSystem).init(allocator),
         };
     }
 
     pub fn deinit(self: *const SystemManager) void {
-        for (self.systems.items) |system| {
+        for (self.untagged_systems.items) |system| {
             system.deinit();
         }
-        self.systems.deinit();
+        self.untagged_systems.deinit();
     }
 
     /// Register a system with the manager.
     pub fn registerSystem(self: *SystemManager, comptime SystemType: type) !void {
         const erased_system = try TypeErasedSystem.init(self.allocator, SystemType);
         errdefer erased_system.deinit();
-        try self.systems.append(erased_system);
+        try self.untagged_systems.append(erased_system);
     }
 
     /// Update all systems.
     pub fn updateAll(self: *SystemManager, registry: *Registry) void {
-        for (self.systems.items) |system| {
+        for (self.untagged_systems.items) |system| {
             system.update(registry) catch |err| {
                 std.debug.print("Failed to update {s}: {}\n", .{ @typeName(@TypeOf(system)), err });
             };
