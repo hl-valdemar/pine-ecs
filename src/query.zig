@@ -9,7 +9,7 @@ pub const QueryError = error{
     InvalidQuery,
 };
 
-/// A view into an entity with its components for queries
+/// A view into an entity with its components for queries.
 pub fn EntityView(comptime component_types: anytype) type {
     const ComponentTuple = @TypeOf(component_types);
     const component_info = @typeInfo(ComponentTuple);
@@ -27,7 +27,7 @@ pub fn EntityView(comptime component_types: anytype) type {
         entity_id: EntityID,
         component_ptrs: [component_count]*anyopaque,
 
-        /// Get a specific component by type
+        /// Get a specific component by type.
         pub fn get(self: *const Self, comptime ComponentType: type) ?*ComponentType {
             comptime var i = 0;
             inline while (i < component_count) : (i += 1) {
@@ -40,15 +40,15 @@ pub fn EntityView(comptime component_types: anytype) type {
             return null;
         }
 
-        /// Get the entity ID
+        /// Get the entity ID.
         pub fn id(self: *const Self) EntityID {
             return self.entity_id;
         }
     };
 }
 
-/// Iterator for component queries
-pub fn QueryIterator(comptime component_types: anytype) type {
+/// Iterator for component queries.
+pub fn ComponentQueryIterator(comptime component_types: anytype) type {
     return struct {
         const Self = @This();
 
@@ -57,7 +57,11 @@ pub fn QueryIterator(comptime component_types: anytype) type {
         views: []EntityView(component_types),
         index: usize = 0,
 
-        pub fn init(allocator: Allocator, registry: *Registry, entity_views: []EntityView(component_types)) !Self {
+        pub fn init(
+            allocator: Allocator,
+            registry: *Registry,
+            entity_views: []EntityView(component_types),
+        ) !Self {
             return Self{
                 .allocator = allocator,
                 .registry = registry,
@@ -66,17 +70,53 @@ pub fn QueryIterator(comptime component_types: anytype) type {
             };
         }
 
+        pub fn deinit(self: *Self) void {
+            self.allocator.free(self.views);
+        }
+
         pub fn next(self: *Self) ?EntityView(component_types) {
             if (self.index < self.views.len) {
                 const view = self.views[self.index];
                 self.index += 1;
 
-                // Free the views array when iteration is complete
+                // free the views array when iteration is complete
                 if (self.index == self.views.len) {
                     self.allocator.free(self.views);
                 }
 
                 return view;
+            }
+            return null;
+        }
+    };
+}
+
+/// Iterator of mutable entries for a given resource.
+pub fn ResourceQueryIterator(comptime Resource: type) type {
+    return struct {
+        const Self = @This();
+
+        allocator: Allocator,
+        resources: []Resource,
+        index: usize = 0,
+
+        pub fn init(allocator: Allocator, resources: []Resource) !Self {
+            return Self{
+                .allocator = allocator,
+                .resources = resources,
+                .index = 0,
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.allocator.free(self.resources);
+        }
+
+        pub fn next(self: *Self) ?*Resource {
+            if (self.index < self.resources.len) {
+                const resource = &self.resources[self.index];
+                self.index += 1;
+                return resource;
             }
             return null;
         }

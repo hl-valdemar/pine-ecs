@@ -5,9 +5,11 @@ const pecs = @import("root.zig");
 const Archetype = pecs.Archetype;
 const ArchetypeHashType = pecs.ArchetypeHashType;
 const TypeErasedComponentStorage = pecs.TypeErasedComponentStorage;
-const QueryIterator = pecs.QueryIterator;
 const EntityView = pecs.EntityView;
+const ComponentQueryIterator = pecs.ComponentQueryIterator;
+const ResourceQueryIterator = pecs.ResourceQueryIterator;
 const SystemManager = pecs.SystemManager;
+const TypeErasedResourceStorage = pecs.TypeErasedResourceStorage;
 
 pub const EntityID = u32;
 
@@ -38,6 +40,8 @@ pub const Registry = struct {
     /// Maps an archetype hash to its corresponding archetype.
     archetypes: std.AutoHashMap(ArchetypeHashType, Archetype),
 
+    resources: std.StringHashMap(TypeErasedResourceStorage),
+
     system_manager: SystemManager,
 
     remove_empty_archetypes: bool,
@@ -47,6 +51,7 @@ pub const Registry = struct {
             .allocator = allocator,
             .entities = std.AutoHashMap(EntityID, EntityPointer).init(allocator),
             .archetypes = std.AutoHashMap(ArchetypeHashType, Archetype).init(allocator),
+            .resources = std.StringHashMap(TypeErasedResourceStorage).init(allocator),
             .system_manager = SystemManager.init(allocator),
             .remove_empty_archetypes = config.remove_empty_archetypes,
         };
@@ -54,6 +59,7 @@ pub const Registry = struct {
         errdefer {
             registry.entities.deinit();
             registry.archetypes.deinit();
+            registry.resources.deinit();
         }
 
         // the empty archetype should always be present
@@ -71,6 +77,12 @@ pub const Registry = struct {
             archetype.deinit();
         }
         self.archetypes.deinit();
+
+        var resource_iter = self.resources.valueIterator();
+        while (resource_iter.next()) |resource| {
+            resource.deinit();
+        }
+        self.resources.deinit();
 
         self.system_manager.deinit();
     }
@@ -262,8 +274,22 @@ pub const Registry = struct {
         try handleSwappedEntity(self, remove_result.swapped_id, entity_ptr.entity_idx);
     }
 
-    /// Query for entities that have all specified component types
-    pub fn query(self: *Registry, comptime component_types: anytype) !QueryIterator(component_types) {
+    /// Query for entities that have all specified component types.
+    ///
+    /// A query might look as follows:
+    /// ```zig
+    /// var result = register.query(.{ Position, Velocity });
+    /// while (result.next()) |entity| {
+    ///     const position = entity.get(Position); // pointer to the position component
+    ///     const velocity = entity.get(Velocity); // pointer to the velocity component
+    ///
+    ///     position.x += velocity.x;
+    ///     position.y += velocity.y;
+    /// }
+    /// ```
+    ///
+    /// If the result is not consumed, it should be deinitialized manually (with `deinit`) to avoid leaking memory.
+    pub fn queryComponents(self: *Registry, component_types: anytype) !ComponentQueryIterator(component_types) {
         const ComponentTuple = @TypeOf(component_types);
         const component_info = @typeInfo(ComponentTuple);
 
@@ -327,7 +353,37 @@ pub const Registry = struct {
             }
         }
 
-        return try QueryIterator(component_types).init(self.allocator, self, buffer.items);
+        return try ComponentQueryIterator(component_types).init(self.allocator, self, buffer.items);
+    }
+
+    pub fn queryResource(self: *Registry, comptime ResourceType: type) !ResourceQueryIterator(ResourceType) {
+        const resource_name = @typeName(ResourceType);
+        if (self.resources.get(resource_name)) |type_erased_resource_storage| {
+            const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, ResourceType);
+            return try ResourceQueryIterator(ResourceType).init(self.allocator, resource_storage.resources.items);
+        }
+        return error.ResourceNotRegistered;
+    }
+
+    pub fn registerResource(self: *Registry, comptime ResourceType: type) !void {
+        const resource_name = @typeName(ResourceType);
+        const entry = try self.resources.getOrPut(resource_name);
+
+        if (!entry.found_existing) {
+            entry.value_ptr.* = try TypeErasedResourceStorage.init(self.allocator, ResourceType);
+        }
+    }
+
+    pub fn pushResource(self: *Registry, resource: anytype) !void {
+        const resource_type = @TypeOf(resource);
+        const resource_name = @typeName(resource_type);
+
+        if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
+            const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, resource_type);
+            try resource_storage.resources.append(resource);
+        } else {
+            return error.ResourceNotRegistered;
+        }
     }
 
     pub fn registerSystem(self: *Registry, comptime SystemType: type) !void {

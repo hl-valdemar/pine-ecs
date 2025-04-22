@@ -6,7 +6,6 @@ pub const ComponentVTable = struct {
     swapRemove: *const fn (*anyopaque, usize) void,
     copy: *const fn (*anyopaque, *anyopaque, usize, usize) Allocator.Error!void,
     createEmpty: *const fn (Allocator) Allocator.Error!TypeErasedComponentStorage,
-
     getComponentPtr: *const fn (*anyopaque, usize) *anyopaque,
 };
 
@@ -75,19 +74,24 @@ pub const TypeErasedComponentStorage = struct {
         };
     }
 
-    pub fn deinit(self: TypeErasedComponentStorage) void {
+    pub fn deinit(self: *const TypeErasedComponentStorage) void {
         self.vtable.deinit(self.allocator, self.ptr);
     }
 
-    pub fn swapRemove(self: TypeErasedComponentStorage, entity_idx: usize) void {
+    pub fn swapRemove(self: *const TypeErasedComponentStorage, entity_idx: usize) void {
         self.vtable.swapRemove(self.ptr, entity_idx);
     }
 
-    pub fn copy(self: TypeErasedComponentStorage, src_entity_idx: usize, dst: TypeErasedComponentStorage, dst_entity_idx: usize) !void {
+    pub fn copy(
+        self: *const TypeErasedComponentStorage,
+        src_entity_idx: usize,
+        dst: TypeErasedComponentStorage,
+        dst_entity_idx: usize,
+    ) !void {
         return self.vtable.copy(self.ptr, dst.ptr, src_entity_idx, dst_entity_idx);
     }
 
-    pub fn cloneType(self: TypeErasedComponentStorage, allocator: Allocator) !TypeErasedComponentStorage {
+    pub fn cloneType(self: *const TypeErasedComponentStorage, allocator: Allocator) !TypeErasedComponentStorage {
         return self.vtable.createEmpty(allocator);
     }
 

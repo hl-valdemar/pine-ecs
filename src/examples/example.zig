@@ -25,8 +25,8 @@ const MovementSystem = struct {
     pub fn update(self: *MovementSystem, registry: *pecs.Registry) anyerror!void {
         _ = self;
 
-        var query_result = registry.query(.{ Position, Name }) catch |err| {
-            std.debug.print("Failed to query entities: {}\n", .{err});
+        var query_result = registry.queryComponents(.{ Position, Name }) catch |err| {
+            std.debug.print("Failed to query components: {}\n", .{err});
             return;
         };
 
@@ -91,7 +91,7 @@ pub fn main() !void {
     std.debug.print("\n", .{});
     std.debug.print("NOTE: Before System Updates\n", .{});
 
-    var query_result_0 = try registry.query(.{Name});
+    var query_result_0 = try registry.queryComponents(.{Name});
 
     std.debug.print("\n", .{});
     std.debug.print("Query .{{ Name }}, results: {}\n", .{query_result_0.views.len});
@@ -106,7 +106,7 @@ pub fn main() !void {
         }
     }
 
-    var query_result_1 = try registry.query(.{ Position, Health });
+    var query_result_1 = try registry.queryComponents(.{ Position, Health });
 
     std.debug.print("\n", .{});
     std.debug.print("Query .{{ Position, Health }}, results: {}\n", .{query_result_1.views.len});
@@ -125,7 +125,7 @@ pub fn main() !void {
         }
     }
 
-    var query_result_2 = try registry.query(.{ Name, Position, Health });
+    var query_result_2 = try registry.queryComponents(.{ Name, Position, Health });
 
     std.debug.print("\n", .{});
     std.debug.print("Query .{{ Name, Position, Health }}, results: {}\n", .{query_result_2.views.len});
@@ -159,7 +159,7 @@ pub fn main() !void {
     // std.debug.print("\n", .{});
     // std.debug.print("NOTE: After System Updates\n", .{});
     //
-    // var query_result_3 = try registry.query(.{Position});
+    // var query_result_3 = try registry.queryComponents(.{Position});
     //
     // std.debug.print("\n", .{});
     // std.debug.print("Query .{{ Position }}, results: {}\n", .{query_result_3.views.len});
@@ -183,7 +183,7 @@ pub fn main() !void {
     std.debug.print("\n", .{});
     std.debug.print("NOTE: After System Updates\n", .{});
 
-    var query_result_4 = try registry.query(.{Position});
+    var query_result_4 = try registry.queryComponents(.{Position});
 
     std.debug.print("\n", .{});
     std.debug.print("Query .{{ Position }}, results: {}\n", .{query_result_4.views.len});
@@ -203,4 +203,30 @@ pub fn main() !void {
     for (registry.systemTags()) |tag| {
         std.debug.print("∟ '{s}'\n", .{tag});
     }
+
+    registry.registerResource(SimpleResource) catch |err| {
+        std.debug.print("failed to register resource: {}\n", .{err});
+    };
+    registry.pushResource(SimpleResource{ .val = 32 }) catch |err| {
+        std.debug.print("failed to push resource: {}\n", .{err});
+    };
+
+    var resource_query_result = try registry.queryResource(SimpleResource);
+    std.debug.print("\n", .{});
+    std.debug.print("Resouces: {}\n", .{resource_query_result.resources.len});
+    while (resource_query_result.next()) |resource| {
+        std.debug.print("∟ {any}\n", .{resource});
+        resource.val += 10;
+    }
+
+    var resource_query_result_2 = try registry.queryResource(SimpleResource);
+    std.debug.print("\n", .{});
+    std.debug.print("Resouces: {}\n", .{resource_query_result_2.resources.len});
+    while (resource_query_result_2.next()) |resource| {
+        std.debug.print("∟ {any}\n", .{resource});
+    }
 }
+
+const SimpleResource = struct {
+    val: u32,
+};
