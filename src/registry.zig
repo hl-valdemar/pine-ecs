@@ -1,4 +1,5 @@
 const std = @import("std");
+const Allocator = std.mem.Allocator;
 
 const pecs = @import("root.zig");
 const Archetype = pecs.Archetype;
@@ -7,8 +8,6 @@ const TypeErasedComponentStorage = pecs.TypeErasedComponentStorage;
 const QueryIterator = pecs.QueryIterator;
 const EntityView = pecs.EntityView;
 const SystemManager = pecs.SystemManager;
-
-const Allocator = std.mem.Allocator;
 
 pub const EntityID = u32;
 
