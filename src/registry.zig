@@ -386,6 +386,15 @@ pub const Registry = struct {
         }
     }
 
+    pub fn clearResource(self: *Registry, comptime ResourceType: type) !void {
+        const resource_name = @typeName(ResourceType);
+        if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
+            type_erased_resource_storage.clear();
+        } else {
+            return error.ResourceNotRegistered;
+        }
+    }
+
     pub fn registerSystem(self: *Registry, comptime SystemType: type) !void {
         try self.system_manager.registerSystem(SystemType);
     }

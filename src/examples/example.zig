@@ -225,6 +225,8 @@ pub fn main() !void {
     while (resource_query_result_2.next()) |resource| {
         std.debug.print("∟ {any}\n", .{resource});
     }
+
+    try registry.clearResource(SimpleResource);
 }
 
 const SimpleResource = struct {
