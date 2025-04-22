@@ -198,4 +198,10 @@ pub fn main() !void {
             std.debug.print("  ∟ Position: {any}\n", .{p});
         }
     }
+
+    std.debug.print("\n", .{});
+    std.debug.print("System tags: {}\n", .{registry.systemTags().len});
+    for (registry.systemTags()) |tag| {
+        std.debug.print("∟ '{s}'\n", .{tag});
+    }
 }

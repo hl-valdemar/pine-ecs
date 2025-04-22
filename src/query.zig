@@ -29,21 +29,20 @@ pub fn EntityView(comptime component_types: anytype) type {
         component_ptrs: [component_count]*anyopaque,
 
         /// Get a specific component by type
-        pub fn get(self: Self, comptime ComponentType: type) ?*ComponentType {
+        pub fn get(self: *const Self, comptime ComponentType: type) ?*ComponentType {
             comptime var i = 0;
             inline while (i < component_count) : (i += 1) {
                 // extract the actual type directly from the tuple value
                 const FieldType = @field(component_types, std.fmt.comptimePrint("{d}", .{i}));
 
-                if (FieldType == ComponentType) {
+                if (FieldType == ComponentType)
                     return @ptrCast(@alignCast(self.component_ptrs[i]));
-                }
             }
             return null;
         }
 
         /// Get the entity ID
-        pub fn id(self: Self) EntityID {
+        pub fn id(self: *const Self) EntityID {
             return self.entity_id;
         }
     };

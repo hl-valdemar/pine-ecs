@@ -175,4 +175,8 @@ pub const SystemManager = struct {
             };
         }
     }
+
+    pub fn tags(self: *SystemManager) [][]const u8 {
+        return self.tagged_systems.keys();
+    }
 };

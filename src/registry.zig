@@ -350,4 +350,8 @@ pub const Registry = struct {
     pub fn updateSystemsTagged(self: *Registry, tag: []const u8) void {
         self.system_manager.updateTagged(self, tag);
     }
+
+    pub fn systemTags(self: *Registry) [][]const u8 {
+        return self.system_manager.tags();
+    }
 };
