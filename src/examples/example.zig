@@ -12,9 +12,9 @@ const Name = struct { value: []const u8 };
 const MovementSystem = struct {
     allocator: Allocator,
 
-    pub fn init(alloc: Allocator) anyerror!MovementSystem {
+    pub fn init(allocator: Allocator) anyerror!MovementSystem {
         return MovementSystem{
-            .allocator = alloc,
+            .allocator = allocator,
         };
     }
 
