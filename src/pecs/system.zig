@@ -1,6 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const log = @import("log.zig");
+
 const Registry = @import("registry.zig").Registry;
 
 pub fn SystemTrait(comptime SystemType: type) type {
@@ -138,7 +140,7 @@ pub const SystemManager = struct {
         // process all untagged systems
         for (self.untagged_systems.items) |system| {
             system.process(registry) catch |err| {
-                std.debug.print("Failed to process {s}: {}\n", .{ @typeName(@TypeOf(system)), err });
+                log.warn("failed to process {s}: {}\n", .{ @typeName(@TypeOf(system)), err });
             };
         }
     }
@@ -153,7 +155,7 @@ pub const SystemManager = struct {
         // process all systems with the given tag
         for (systems.?.items) |system| {
             system.process(registry) catch |err| {
-                std.debug.print("Failed to process {s}, tag '{s}': {}\n", .{ @typeName(@TypeOf(system)), tag, err });
+                log.warn("failed to process {s}, tag '{s}': {}\n", .{ @typeName(@TypeOf(system)), tag, err });
             };
         }
     }

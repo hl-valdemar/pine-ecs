@@ -1,6 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const log = @import("log.zig");
+
 const res = @import("archetype.zig");
 const Archetype = res.Archetype;
 const ArchetypeHashType = res.ArchetypeHashType;
@@ -128,7 +130,7 @@ pub const Registry = struct {
                 swapped_entity_ptr_ptr.*.entity_idx = original_entity_idx;
             } else {
                 // should not happen in consistent state
-                std.debug.print("Error: Swapped entity ID {d} not found in registry during destroyEntity!", .{swapped_entity_id});
+                log.err("swapped entity ID {d} not found in registry during destroyEntity!", .{swapped_entity_id});
                 return error.InternalInconsistency;
             }
         }
@@ -197,12 +199,12 @@ pub const Registry = struct {
         self: *Registry,
         swapped_entity_id: ?EntityID,
         original_entity_idx: usize,
-    ) !void {
+    ) RegistryError!void {
         if (swapped_entity_id) |entity_id| {
             if (self.entities.getPtr(entity_id)) |swapped_entity_ptr_ptr| {
                 swapped_entity_ptr_ptr.*.entity_idx = original_entity_idx;
             } else {
-                std.debug.print("Error: Swapped entity ID {d} not found in registry!", .{entity_id});
+                log.err("swapped entity ID {d} not found in registry!", .{entity_id});
                 return error.InternalInconsistency;
             }
         }

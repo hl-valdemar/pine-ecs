@@ -3,6 +3,10 @@ const Allocator = std.mem.Allocator;
 
 const pecs = @import("pecs");
 
+pub const std_options = std.Options{
+    .logFn = pecs.log.logFn,
+};
+
 // example components
 const Position = struct { x: u32, y: u32 };
 const Health = struct { value: u8 };
@@ -26,7 +30,7 @@ const MovementSystem = struct {
         _ = self;
 
         var query_result = registry.queryComponents(.{ Position, Name }) catch |err| {
-            std.debug.print("Failed to query components: {}\n", .{err});
+            std.log.warn("failed to query components: {}\n", .{err});
             return;
         };
 
@@ -40,7 +44,7 @@ const MovementSystem = struct {
             }
 
             if (name) |n| {
-                std.debug.print("\nSystem log: {s} moved!\n", .{n.value});
+                std.log.info("{s} moved!", .{n.value});
             }
         }
     }
@@ -88,8 +92,7 @@ pub fn main() !void {
 
     // QUERIES //
 
-    std.debug.print("\n", .{});
-    std.debug.print("NOTE: Before System Updates\n", .{});
+    std.log.info("NOTE: before system updates:", .{});
 
     var query_result_0 = try registry.queryComponents(.{Name});
 
@@ -175,18 +178,17 @@ pub fn main() !void {
     // }
 
     registry.registerTaggedSystem(MovementSystem, "test") catch |err| {
-        std.debug.print("\nFailed to register tagged system: {}\n", .{err});
+        std.log.err("failed to register tagged system: {}", .{err});
     };
 
     registry.processSystemsTagged("ass") catch |err| {
-        std.debug.print("\nFailed to process system with tag 'ass': {}\n", .{err});
+        std.log.err("failed to process system with tag 'ass': {}", .{err});
     };
     registry.processSystemsTagged("test") catch |err| {
-        std.debug.print("\nFailed to process tagged system: {}\n", .{err});
+        std.log.err("failed to process tagged system: {}", .{err});
     };
 
-    std.debug.print("\n", .{});
-    std.debug.print("NOTE: After System Updates\n", .{});
+    std.log.info("NOTE: after system updates:", .{});
 
     var query_result_4 = try registry.queryComponents(.{Position});
 
@@ -210,10 +212,10 @@ pub fn main() !void {
     }
 
     registry.registerResource(SimpleResource) catch |err| {
-        std.debug.print("failed to register resource: {}\n", .{err});
+        std.log.err("failed to register resource: {}", .{err});
     };
     registry.pushResource(SimpleResource{ .val = 32 }) catch |err| {
-        std.debug.print("failed to push resource: {}\n", .{err});
+        std.log.err("failed to push resource: {}", .{err});
     };
 
     var resource_query_result = try registry.queryResource(SimpleResource);

@@ -1,4 +1,14 @@
+// global settings //
+const std = @import("std");
+
+pub const std_options = std.Options{
+    .logFn = log.logFn,
+};
+
 //-- public --//
+
+pub const log = @import("pecs/log.zig");
+
 pub const Archetype = archetype.Archetype;
 pub const ArchetypeHashType = archetype.ArchetypeHashType;
 
