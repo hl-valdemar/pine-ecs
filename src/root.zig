@@ -5,7 +5,7 @@ pub const std_options = std.Options{
     .logFn = log.logFn,
 };
 
-//-- public --//
+// public exports //
 
 pub const log = @import("pecs/log.zig");
 
@@ -24,7 +24,8 @@ pub const ResourceQueryIterator = query.ResourceQueryIterator;
 
 pub const SystemManager = system.SystemManager;
 
-//-- private --//
+// private imports //
+
 const archetype = @import("pecs/archetype.zig");
 const component = @import("pecs/component.zig");
 const registry = @import("pecs/registry.zig");

@@ -100,7 +100,7 @@ pub fn ResourceQueryIterator(comptime Resource: type) type {
         resources: []Resource,
         index: usize = 0,
 
-        pub fn init(allocator: Allocator, resources: []Resource) !Self {
+        pub fn init(allocator: Allocator, resources: []Resource) Self {
             return Self{
                 .allocator = allocator,
                 .resources = resources,
