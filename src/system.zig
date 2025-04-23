@@ -20,10 +20,10 @@ pub fn SystemTrait(comptime SystemType: type) type {
                 @compileError("System type must have deinit(*Self) void");
             }
 
-            if (!@hasDecl(SystemType, "update") or
-                @TypeOf(SystemType.update) != fn (*SystemType, *Registry) anyerror!void)
+            if (!@hasDecl(SystemType, "process") or
+                @TypeOf(SystemType.process) != fn (*SystemType, *Registry) anyerror!void)
             {
-                @compileError("System type must have update(*Self, *Registry) anyerror!void");
+                @compileError("System type must have process(*Self, *Registry) anyerror!void");
             }
         }
     };
@@ -51,8 +51,8 @@ pub const TypeErasedSystem = struct {
         self.vtable.deinit(self.allocator, self.ptr);
     }
 
-    pub fn update(self: TypeErasedSystem, registry: *Registry) anyerror!void {
-        try self.vtable.update(self.ptr, registry);
+    pub fn process(self: TypeErasedSystem, registry: *Registry) anyerror!void {
+        try self.vtable.process(self.ptr, registry);
     }
 
     pub fn cast(type_erased_system_ptr: *anyopaque, comptime SystemType: type) *SystemType {
@@ -63,7 +63,7 @@ pub const TypeErasedSystem = struct {
 /// Virtual function table for type-erased systems.
 pub const SystemVTable = struct {
     deinit: *const fn (Allocator, *anyopaque) void,
-    update: *const fn (*anyopaque, *Registry) anyerror!void,
+    process: *const fn (*anyopaque, *Registry) anyerror!void,
 };
 
 pub fn makeSystemVTable(comptime SystemType: type) SystemVTable {
@@ -75,10 +75,10 @@ pub fn makeSystemVTable(comptime SystemType: type) SystemVTable {
                 allocator.destroy(system);
             }
         }).func,
-        .update = (struct {
+        .process = (struct {
             fn func(type_erased_system_ptr: *anyopaque, registry: *Registry) anyerror!void {
                 const system = TypeErasedSystem.cast(type_erased_system_ptr, SystemType);
-                try system.update(registry);
+                try system.process(registry);
             }
         }).func,
     };
@@ -86,27 +86,26 @@ pub fn makeSystemVTable(comptime SystemType: type) SystemVTable {
 
 pub const SystemManager = struct {
     allocator: Allocator,
-    tagged_systems: std.StringArrayHashMap(TypeErasedSystem),
+    tagged_systems: std.StringArrayHashMap(std.ArrayList(TypeErasedSystem)),
     untagged_systems: std.ArrayList(TypeErasedSystem),
 
     pub fn init(allocator: Allocator) SystemManager {
         return SystemManager{
             .allocator = allocator,
-            .tagged_systems = std.StringArrayHashMap(TypeErasedSystem).init(allocator),
+            .tagged_systems = std.StringArrayHashMap(std.ArrayList(TypeErasedSystem)).init(allocator),
             .untagged_systems = std.ArrayList(TypeErasedSystem).init(allocator),
         };
     }
 
     pub fn deinit(self: *SystemManager) void {
         // clean up all untagged systems
-        for (self.untagged_systems.items) |system| {
-            system.deinit();
-        }
+        for (self.untagged_systems.items) |system| system.deinit();
         self.untagged_systems.deinit();
 
         // clean up all tagged systems
-        for (self.tagged_systems.values()) |system| {
-            system.deinit();
+        for (self.tagged_systems.values()) |systems| {
+            for (systems.items) |system| system.deinit();
+            systems.deinit();
         }
         self.tagged_systems.deinit();
     }
@@ -118,63 +117,59 @@ pub const SystemManager = struct {
         try self.untagged_systems.append(erased_system);
     }
 
+    /// Register a system with the manager with the given tag.
+    ///
+    /// Useful for differentiating systems that should run under certain circumstances.
     pub fn registerTaggedSystem(self: *SystemManager, comptime SystemType: type, tag: []const u8) !void {
         const type_erased_system = try TypeErasedSystem.init(self.allocator, SystemType);
         errdefer type_erased_system.deinit();
-        try self.tagged_systems.put(tag, type_erased_system);
+
+        const entry = try self.tagged_systems.getOrPut(tag);
+        if (!entry.found_existing) {
+            // new tag => new array list
+            entry.value_ptr.* = std.ArrayList(TypeErasedSystem).init(self.allocator);
+        }
+
+        const systems = entry.value_ptr;
+        try systems.append(type_erased_system);
     }
 
-    /// Update all systems with the given tag.
-    pub fn updateUntagged(self: *SystemManager, registry: *Registry) void {
-        // update all untagged systems
+    /// Process all systems with the given tag.
+    pub fn processUntagged(self: *SystemManager, registry: *Registry) void {
+        // process all untagged systems
         for (self.untagged_systems.items) |system| {
-            system.update(registry) catch |err| {
-                std.debug.print("Failed to update {s}: {}\n", .{ @typeName(@TypeOf(system)), err });
+            system.process(registry) catch |err| {
+                std.debug.print("Failed to process {s}: {}\n", .{ @typeName(@TypeOf(system)), err });
             };
         }
     }
 
-    /// Update all systems with the given tag.
-    pub fn updateTagged(self: *SystemManager, registry: *Registry, target_tag: []const u8) void {
-        // update all tagged systems
-        var tagged_systems_iter = self.tagged_systems.iterator();
-        blk: while (tagged_systems_iter.next()) |entry| {
-            const this_tag = entry.key_ptr.*;
-            if (!std.mem.eql(u8, target_tag, this_tag)) continue :blk;
+    /// Process all systems with the given tag.
+    pub fn processTagged(self: *SystemManager, registry: *Registry, tag: []const u8) !void {
+        const systems = self.tagged_systems.get(tag);
 
-            const system = entry.value_ptr;
-            system.update(registry) catch |err| {
-                std.debug.print(
-                    "Failed to update {s}, tag '{s}': {}\n",
-                    .{ @typeName(@TypeOf(system)), target_tag, err },
-                );
+        if (systems == null)
+            return error.NoSuchTag;
+
+        // process all systems with the given tag
+        for (systems.?.items) |system| {
+            system.process(registry) catch |err| {
+                std.debug.print("Failed to process {s}, tag '{s}': {}\n", .{ @typeName(@TypeOf(system)), tag, err });
             };
         }
     }
 
-    /// Update all systems.
-    pub fn updateAll(self: *SystemManager, registry: *Registry) void {
-        // update all untagged systems
-        for (self.untagged_systems.items) |system| {
-            system.update(registry) catch |err| {
-                std.debug.print("Failed to update {s}: {}\n", .{ @typeName(@TypeOf(system)), err });
-            };
-        }
+    /// Process all systems.
+    pub fn processAll(self: *SystemManager, registry: *Registry) void {
+        // process all untagged systems
+        self.processUntagged(registry);
 
-        // update all tagged systems
-        var tagged_systems_iter = self.tagged_systems.iterator();
-        while (tagged_systems_iter.next()) |entry| {
-            const tag = entry.key_ptr;
-            const system = entry.value_ptr;
-            system.update(registry) catch |err| {
-                std.debug.print(
-                    "Failed to update {s}, tag '{s}': {}\n",
-                    .{ @typeName(@TypeOf(system)), tag, err },
-                );
-            };
-        }
+        // process all tagged systems
+        const system_tags = self.tagged_systems.keys();
+        for (system_tags) |tag| self.processTagged(registry, tag);
     }
 
+    /// Return a list of registered tags.
     pub fn tags(self: *SystemManager) [][]const u8 {
         return self.tagged_systems.keys();
     }

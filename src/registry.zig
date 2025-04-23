@@ -403,16 +403,16 @@ pub const Registry = struct {
         try self.system_manager.registerTaggedSystem(SystemType, tag);
     }
 
-    pub fn updateSystems(self: *Registry) void {
-        self.system_manager.updateAll(self);
+    pub fn processSystems(self: *Registry) void {
+        self.system_manager.processAll(self);
     }
 
-    pub fn updateSystemsUntagged(self: *Registry) void {
-        self.system_manager.updateUntagged(self);
+    pub fn processSystemsUntagged(self: *Registry) void {
+        self.system_manager.processUntagged(self);
     }
 
-    pub fn updateSystemsTagged(self: *Registry, tag: []const u8) void {
-        self.system_manager.updateTagged(self, tag);
+    pub fn processSystemsTagged(self: *Registry, tag: []const u8) !void {
+        try self.system_manager.processTagged(self, tag);
     }
 
     pub fn systemTags(self: *Registry) [][]const u8 {

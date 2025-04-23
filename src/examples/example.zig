@@ -22,7 +22,7 @@ const MovementSystem = struct {
         _ = self;
     }
 
-    pub fn update(self: *MovementSystem, registry: *pecs.Registry) anyerror!void {
+    pub fn process(self: *MovementSystem, registry: *pecs.Registry) anyerror!void {
         _ = self;
 
         var query_result = registry.queryComponents(.{ Position, Name }) catch |err| {
@@ -154,7 +154,7 @@ pub fn main() !void {
     //     std.debug.print("Failed to register system: {}\n", .{err});
     // };
     //
-    // registry.updateSystems();
+    // registry.processSystems();
     //
     // std.debug.print("\n", .{});
     // std.debug.print("NOTE: After System Updates\n", .{});
@@ -174,11 +174,16 @@ pub fn main() !void {
     //     }
     // }
 
-    registry.registerTaggedSystem(MovementSystem, "init") catch |err| {
-        std.debug.print("Failed to register tagged system: {}\n", .{err});
+    registry.registerTaggedSystem(MovementSystem, "test") catch |err| {
+        std.debug.print("\nFailed to register tagged system: {}\n", .{err});
     };
 
-    registry.updateSystemsTagged("ass");
+    registry.processSystemsTagged("ass") catch |err| {
+        std.debug.print("\nFailed to process system with tag 'ass': {}\n", .{err});
+    };
+    registry.processSystemsTagged("test") catch |err| {
+        std.debug.print("\nFailed to process tagged system: {}\n", .{err});
+    };
 
     std.debug.print("\n", .{});
     std.debug.print("NOTE: After System Updates\n", .{});
