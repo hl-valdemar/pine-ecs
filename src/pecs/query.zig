@@ -1,9 +1,9 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const pecs = @import("root.zig");
-const EntityID = pecs.EntityID;
-const Registry = pecs.Registry;
+const reg = @import("registry.zig");
+const EntityID = reg.EntityID;
+const Registry = reg.Registry;
 
 pub const QueryError = error{
     InvalidQuery,

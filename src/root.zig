@@ -15,9 +15,9 @@ pub const ResourceQueryIterator = query.ResourceQueryIterator;
 pub const SystemManager = system.SystemManager;
 
 //-- private --//
-const archetype = @import("archetype.zig");
-const component = @import("component.zig");
-const registry = @import("registry.zig");
-const query = @import("query.zig");
-const system = @import("system.zig");
-const resource = @import("resource.zig");
+const archetype = @import("pecs/archetype.zig");
+const component = @import("pecs/component.zig");
+const registry = @import("pecs/registry.zig");
+const query = @import("pecs/query.zig");
+const system = @import("pecs/system.zig");
+const resource = @import("pecs/resource.zig");

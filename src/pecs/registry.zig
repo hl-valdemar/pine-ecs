@@ -1,15 +1,18 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const pecs = @import("root.zig");
-const Archetype = pecs.Archetype;
-const ArchetypeHashType = pecs.ArchetypeHashType;
-const TypeErasedComponentStorage = pecs.TypeErasedComponentStorage;
-const EntityView = pecs.EntityView;
-const ComponentQueryIterator = pecs.ComponentQueryIterator;
-const ResourceQueryIterator = pecs.ResourceQueryIterator;
-const SystemManager = pecs.SystemManager;
-const TypeErasedResourceStorage = pecs.TypeErasedResourceStorage;
+const res = @import("archetype.zig");
+const Archetype = res.Archetype;
+const ArchetypeHashType = res.ArchetypeHashType;
+
+const query = @import("query.zig");
+const EntityView = query.EntityView;
+const ComponentQueryIterator = query.ComponentQueryIterator;
+const ResourceQueryIterator = query.ResourceQueryIterator;
+
+const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
+const SystemManager = @import("system.zig").SystemManager;
+const TypeErasedResourceStorage = @import("resource.zig").TypeErasedResourceStorage;
 
 pub const EntityID = u32;
 

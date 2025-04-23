@@ -1,8 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const pecs = @import("root.zig");
-const Registry = pecs.Registry;
+const Registry = @import("registry.zig").Registry;
 
 pub fn SystemTrait(comptime SystemType: type) type {
     return struct {

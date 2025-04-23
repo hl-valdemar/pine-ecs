@@ -1,9 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const pecs = @import("root.zig");
-const EntityID = pecs.EntityID;
-const TypeErasedComponentStorage = pecs.TypeErasedComponentStorage;
+const EntityID = @import("registry.zig").EntityID;
+const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
 
 pub const ArchetypeHashType = u64;
 
