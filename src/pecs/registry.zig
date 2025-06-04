@@ -14,8 +14,9 @@ const ResourceQueryIterator = query.ResourceQueryIterator;
 const QueryError = query.QueryError;
 
 const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
-const SystemManager = @import("system.zig").SystemManager;
 const TypeErasedResourceStorage = @import("resource.zig").TypeErasedResourceStorage;
+const SystemManager = @import("system.zig").SystemManager;
+const Plugin = @import("plugin.zig").Plugin;
 
 pub const EntityID = u32;
 
@@ -43,6 +44,9 @@ pub const Registry = struct {
     /// Data not related to any particular entities.
     resources: std.StringHashMap(TypeErasedResourceStorage),
 
+    /// Plugins comprising bundles of functionality.
+    plugins: std.ArrayList(Plugin),
+
     system_manager: SystemManager,
 
     config: RegistryConfig,
@@ -60,6 +64,7 @@ pub const Registry = struct {
             .entities = std.AutoHashMap(EntityID, EntityPointer).init(allocator),
             .archetypes = std.AutoHashMap(ArchetypeHashType, Archetype).init(allocator),
             .resources = std.StringHashMap(TypeErasedResourceStorage).init(allocator),
+            .plugins = std.ArrayList(Plugin).init(allocator),
             .system_manager = SystemManager.init(allocator),
             .config = config,
         };
@@ -68,6 +73,7 @@ pub const Registry = struct {
             registry.entities.deinit();
             registry.archetypes.deinit();
             registry.resources.deinit();
+            registry.plugins.deinit();
         }
 
         // the empty archetype should always be present
@@ -91,6 +97,13 @@ pub const Registry = struct {
             resource.deinit();
         }
         self.resources.deinit();
+
+        for (self.plugins.items) |plugin| {
+            if (plugin.deinit_fn) |deinit_fn| {
+                deinit_fn(self);
+            }
+        }
+        self.plugins.deinit();
 
         self.system_manager.deinit();
     }
@@ -422,6 +435,11 @@ pub const Registry = struct {
         } else {
             return Error.UnregisteredResource;
         }
+    }
+
+    pub fn addPlugin(self: *Registry, plugin: Plugin) !void {
+        try self.plugins.append(plugin);
+        try plugin.init_fn(self);
     }
 
     pub fn registerSystem(self: *Registry, comptime SystemType: type) !void {
