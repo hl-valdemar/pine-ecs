@@ -8,6 +8,7 @@ pub const std_options = std.Options{
 };
 
 // example components
+const Player = struct {};
 const Position = struct { x: u32, y: u32 };
 const Health = struct { value: u8 };
 const Name = struct { value: []const u8 };
@@ -234,6 +235,23 @@ pub fn main() !void {
     }
 
     try registry.clearResource(SimpleResource);
+
+    // SIMPLE SPAWN COMMAND
+
+    _ = try registry.spawn(.{
+        Player{},
+        Health{ .value = 3 },
+    });
+
+    var result = try registry.queryComponents(.{ Player, Health });
+    std.debug.print("\n", .{});
+    std.debug.print("Entities spawned with `spawn(...)` command: {}\n", .{resource_query_result_2.resources.len});
+    while (result.next()) |entity| {
+        std.debug.print("\n", .{});
+        std.debug.print("  Entity ID: {d}\n", .{entity.entity_id});
+        std.debug.print("  ∟ Player component: {any}\n", .{entity.get(Player).?});
+        std.debug.print("  ∟ Health component: {any}\n", .{entity.get(Health).?});
+    }
 }
 
 const SimpleResource = struct {

@@ -95,6 +95,27 @@ pub const Registry = struct {
         self.system_manager.deinit();
     }
 
+    /// Spawn an entity with initial components.
+    ///
+    /// An example might look as follows:
+    /// ```zig
+    /// const entity = try registry.spawn(.{
+    ///     Player{},
+    ///     Health{ .current = 3, .max = 5 },
+    /// });
+    /// ```
+    pub fn spawn(self: *Registry, components: anytype) !EntityID {
+        const entity = try self.createEntity();
+        errdefer _ = self.destroyEntity(entity) catch unreachable; // if we reach this line, the entity must have been created
+
+        // add components with reflection
+        inline for (std.meta.fields(@TypeOf(components))) |field| {
+            try self.addComponent(entity, @field(components, field.name));
+        }
+
+        return entity;
+    }
+
     pub fn createEntity(self: *Registry) !EntityID {
         const new_id = self.entities.count();
         const empty_archetype = self.archetypes.getPtr(Archetype.VOID_ARCHETYPE_HASH).?;
@@ -286,10 +307,10 @@ pub const Registry = struct {
     ///
     /// A query might look as follows:
     /// ```zig
-    /// var result = register.query(.{ Position, Velocity });
+    /// var result = try register.queryComponents(.{ Position, Velocity });
     /// while (result.next()) |entity| {
-    ///     const position = entity.get(Position); // pointer to the position component
-    ///     const velocity = entity.get(Velocity); // pointer to the velocity component
+    ///     const position = entity.get(Position).?; // pointer to the position component
+    ///     const velocity = entity.get(Velocity).?; // pointer to the velocity component
     ///
     ///     position.x += velocity.x;
     ///     position.y += velocity.y;
