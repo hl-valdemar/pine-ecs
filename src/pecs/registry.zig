@@ -296,7 +296,7 @@ pub const Registry = struct {
     /// }
     /// ```
     ///
-    /// If the result is not consumed, it should be deinitialized manually (with `deinit`) to avoid leaking memory.
+    /// NB: If the result is not consumed, it should be deinitialized manually (with `deinit`) to avoid leaking memory.
     pub fn queryComponents(self: *Registry, component_types: anytype) !ComponentQueryIterator(component_types) {
         const ComponentTuple = @TypeOf(component_types);
         const component_info = @typeInfo(ComponentTuple);
