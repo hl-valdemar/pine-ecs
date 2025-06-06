@@ -12,19 +12,19 @@ pub fn SystemTrait(comptime SystemType: type) type {
             if (!@hasDecl(SystemType, "init") or
                 @TypeOf(SystemType.init) != fn (Allocator) anyerror!SystemType)
             {
-                @compileError("System type must have init(Allocator) anyerror!SystemType");
+                @compileError("System type must have `init(Allocator) anyerror!SystemType`");
             }
 
             if (!@hasDecl(SystemType, "deinit") or
                 @TypeOf(SystemType.deinit) != fn (*SystemType) void)
             {
-                @compileError("System type must have deinit(*Self) void");
+                @compileError("System type must have `deinit(*Self) void`");
             }
 
             if (!@hasDecl(SystemType, "process") or
                 @TypeOf(SystemType.process) != fn (*SystemType, *Registry) anyerror!void)
             {
-                @compileError("System type must have process(*Self, *Registry) anyerror!void");
+                @compileError("System type must have `process(*Self, *Registry) anyerror!void`");
             }
         }
     };
