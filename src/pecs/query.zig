@@ -99,17 +99,20 @@ pub fn ResourceQueryIterator(comptime Resource: type) type {
         allocator: Allocator,
         resources: []Resource,
         index: usize = 0,
+        freed: bool = false,
 
         pub fn init(allocator: Allocator, resources: []Resource) Self {
             return Self{
                 .allocator = allocator,
                 .resources = resources,
                 .index = 0,
+                .freed = false,
             };
         }
 
         pub fn deinit(self: *Self) void {
             self.allocator.free(self.resources);
+            self.freed = true;
         }
 
         pub fn next(self: *Self) ?*Resource {
