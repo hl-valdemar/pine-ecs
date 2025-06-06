@@ -24,6 +24,8 @@ pub const ResourceQueryIterator = query.ResourceQueryIterator;
 
 pub const SystemManager = system.SystemManager;
 
+pub const Plugin = plugin.Plugin;
+
 // private imports //
 
 const archetype = @import("pecs/archetype.zig");
@@ -32,3 +34,4 @@ const registry = @import("pecs/registry.zig");
 const query = @import("pecs/query.zig");
 const system = @import("pecs/system.zig");
 const resource = @import("pecs/resource.zig");
+const plugin = @import("pecs/plugin.zig");
