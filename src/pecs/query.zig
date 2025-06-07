@@ -56,6 +56,7 @@ pub fn ComponentQueryIterator(comptime component_types: anytype) type {
         registry: *Registry,
         views: []EntityView(component_types),
         index: usize = 0,
+        freed: bool = false,
 
         pub fn init(
             allocator: Allocator,
@@ -67,11 +68,13 @@ pub fn ComponentQueryIterator(comptime component_types: anytype) type {
                 .registry = registry,
                 .views = try allocator.dupe(EntityView(component_types), entity_views),
                 .index = 0,
+                .freed = false,
             };
         }
 
         pub fn deinit(self: *Self) void {
             self.allocator.free(self.views);
+            self.freed = true;
         }
 
         pub fn next(self: *Self) ?EntityView(component_types) {

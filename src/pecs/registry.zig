@@ -44,7 +44,7 @@ pub const Registry = struct {
     /// Data not related to any particular entities.
     resources: std.StringHashMap(TypeErasedResourceStorage),
 
-    /// Plugins comprising bundles of functionality.
+    /// Plugins bundle behavior.
     plugins: std.ArrayList(Plugin),
 
     system_manager: SystemManager,
@@ -398,22 +398,22 @@ pub const Registry = struct {
         return try ComponentQueryIterator(component_types).init(self.allocator, self, buffer.items);
     }
 
-    pub fn queryResource(self: *Registry, comptime ResourceType: type) Error!ResourceQueryIterator(ResourceType) {
-        const resource_name = @typeName(ResourceType);
-        if (self.resources.get(resource_name)) |type_erased_resource_storage| {
-            const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, ResourceType);
-            return ResourceQueryIterator(ResourceType).init(self.allocator, resource_storage.resources.items);
-        }
-        return Error.UnregisteredResource;
-    }
-
-    pub fn registerResource(self: *Registry, comptime ResourceType: type) !void {
-        const resource_name = @typeName(ResourceType);
+    pub fn registerResource(self: *Registry, comptime Resource: type) !void {
+        const resource_name = @typeName(Resource);
         const entry = try self.resources.getOrPut(resource_name);
 
         if (!entry.found_existing) {
-            entry.value_ptr.* = try TypeErasedResourceStorage.init(self.allocator, ResourceType);
+            entry.value_ptr.* = try TypeErasedResourceStorage.init(self.allocator, Resource);
         }
+    }
+
+    pub fn queryResource(self: *Registry, comptime Resource: type) Error!ResourceQueryIterator(Resource) {
+        const resource_name = @typeName(Resource);
+        if (self.resources.get(resource_name)) |type_erased_resource_storage| {
+            const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, Resource);
+            return ResourceQueryIterator(Resource).init(self.allocator, resource_storage.resources.items);
+        }
+        return Error.UnregisteredResource;
     }
 
     pub fn pushResource(self: *Registry, resource: anytype) !void {
@@ -428,8 +428,8 @@ pub const Registry = struct {
         }
     }
 
-    pub fn clearResource(self: *Registry, comptime ResourceType: type) Error!void {
-        const resource_name = @typeName(ResourceType);
+    pub fn clearResource(self: *Registry, comptime Resource: type) Error!void {
+        const resource_name = @typeName(Resource);
         if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
             type_erased_resource_storage.clear();
         } else {
@@ -442,12 +442,12 @@ pub const Registry = struct {
         try plugin.init_fn(self);
     }
 
-    pub fn registerSystem(self: *Registry, comptime SystemType: type) !void {
-        try self.system_manager.registerSystem(SystemType);
+    pub fn registerSystem(self: *Registry, comptime System: type) !void {
+        try self.system_manager.registerSystem(System);
     }
 
-    pub fn registerTaggedSystem(self: *Registry, comptime SystemType: type, tag: []const u8) !void {
-        try self.system_manager.registerTaggedSystem(SystemType, tag);
+    pub fn registerTaggedSystem(self: *Registry, comptime System: type, tag: []const u8) !void {
+        try self.system_manager.registerTaggedSystem(System, tag);
     }
 
     pub fn processSystems(self: *Registry) void {
