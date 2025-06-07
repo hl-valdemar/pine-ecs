@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 pub const ResourceVTable = struct {
     deinit: *const fn (Allocator, *anyopaque) void,
     clear: *const fn (*anyopaque) void,
+    remove: *const fn (*anyopaque, usize) void,
     createEmpty: *const fn (Allocator) Allocator.Error!TypeErasedResourceStorage,
 };
 
@@ -20,6 +21,12 @@ pub fn makeResourceVTable(comptime Resource: type) ResourceVTable {
             fn func(type_erased_resource_ptr: *anyopaque) void {
                 const storage = TypeErasedResourceStorage.cast(type_erased_resource_ptr, Resource);
                 storage.clear();
+            }
+        }).func,
+        .remove = (struct {
+            fn func(type_erased_resource_ptr: *anyopaque, idx: usize) void {
+                const storage = TypeErasedResourceStorage.cast(type_erased_resource_ptr, Resource);
+                _ = storage.swapRemove(idx);
             }
         }).func,
         .createEmpty = (struct {
@@ -62,6 +69,10 @@ pub const TypeErasedResourceStorage = struct {
         self.vtable.clear(self.ptr);
     }
 
+    pub fn remove(self: *const TypeErasedResourceStorage, idx: usize) void {
+        self.vtable.remove(self.ptr, idx);
+    }
+
     /// Cast a type erased component storage to a ResourceStorage(Component) of the given component type.
     ///
     /// NOTE: if cast to an inappropriate type, use may lead to corruption of memory.
@@ -90,8 +101,8 @@ pub fn ResourceStorage(comptime Resource: type) type {
             self.resources.clearRetainingCapacity();
         }
 
-        pub fn swapRemove(self: *Self, idx: usize) void {
-            _ = self.resources.swapRemove(idx);
+        pub fn swapRemove(self: *Self, idx: usize) Resource {
+            return self.resources.swapRemove(idx);
         }
     };
 }

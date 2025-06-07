@@ -437,6 +437,15 @@ pub const Registry = struct {
         }
     }
 
+    pub fn removeResource(self: *Registry, comptime Resource: type, idx: usize) Error!void {
+        const resource_name = @typeName(Resource);
+        if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
+            type_erased_resource_storage.remove(idx);
+        } else {
+            return Error.UnregisteredResource;
+        }
+    }
+
     pub fn addPlugin(self: *Registry, plugin: Plugin) !void {
         try self.plugins.append(plugin);
         try plugin.init_fn(self);
