@@ -52,7 +52,7 @@ const MovementSystem = struct {
 };
 
 pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    var gpa = std.heap.DebugAllocator(.{}).init;
     const allocator = gpa.allocator();
     defer _ = gpa.deinit();
 
