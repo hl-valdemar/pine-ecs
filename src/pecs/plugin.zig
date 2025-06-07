@@ -1,3 +1,6 @@
+const std = @import("std");
+const Allocator = std.mem.Allocator;
+
 const Registry = @import("registry.zig").Registry;
 
 /// Plugins can be used to bundle behavior.
@@ -17,19 +20,25 @@ const Registry = @import("registry.zig").Registry;
 /// }.init);
 /// ```
 pub const Plugin = struct {
-    name: []const u8,
-    init_fn: *const fn (*Registry) anyerror!void,
-    deinit_fn: ?*const fn (*Registry) void = null,
+    const InitFunc = *const fn (*Registry) anyerror!void;
+    const DeinitFunc = *const fn (*Registry) void;
 
-    pub fn init(name: []const u8, init_fn: *const fn (*Registry) anyerror!void) Plugin {
+    allocator: Allocator,
+    name: []const u8,
+    init_fn: InitFunc,
+    deinit_fn: ?DeinitFunc = null,
+
+    pub fn init(allocator: Allocator, name: []const u8, init_fn: InitFunc) Plugin {
         return Plugin{
+            .allocator = allocator,
             .name = name,
             .init_fn = init_fn,
         };
     }
 
-    pub fn withDeinit(self: Plugin, deinit_fn: *const fn (*Registry) void) Plugin {
+    pub fn withDeinit(self: Plugin, deinit_fn: DeinitFunc) Plugin {
         return Plugin{
+            .allocator = self.allocator,
             .name = self.name,
             .init_fn = self.init_fn,
             .deinit_fn = deinit_fn,
