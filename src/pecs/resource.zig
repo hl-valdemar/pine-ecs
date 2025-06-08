@@ -26,7 +26,7 @@ pub fn makeResourceVTable(comptime Resource: type) ResourceVTable {
         .remove = (struct {
             fn func(type_erased_resource_ptr: *anyopaque, idx: usize) void {
                 const storage = TypeErasedResourceStorage.cast(type_erased_resource_ptr, Resource);
-                _ = storage.swapRemove(idx);
+                _ = storage.remove(idx);
             }
         }).func,
         .createEmpty = (struct {
@@ -99,6 +99,10 @@ pub fn ResourceStorage(comptime Resource: type) type {
 
         pub fn clear(self: *Self) void {
             self.resources.clearRetainingCapacity();
+        }
+
+        pub fn remove(self: *Self, idx: usize) Resource {
+            return self.resources.orderedRemove(idx);
         }
 
         pub fn swapRemove(self: *Self, idx: usize) Resource {
