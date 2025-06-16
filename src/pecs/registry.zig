@@ -431,8 +431,6 @@ pub const Registry = struct {
             log.err("tried to push unregistered resource [{s}]!", .{ resource_name });
             return Error.UnregisteredResource;
         }
-
-        log.info("pushed resource [{s}]", .{ resource_name });
     }
 
     pub fn clearResource(self: *Registry, comptime Resource: type) Error!void {
@@ -450,7 +448,7 @@ pub const Registry = struct {
         if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
             type_erased_resource_storage.remove(idx);
         } else {
-            log.err("trying to remove unregistered resource [{s}]!", .{ resource_name });
+            log.err("tried to remove unregistered resource [{s}]!", .{ resource_name });
             return Error.UnregisteredResource;
         }
     }
