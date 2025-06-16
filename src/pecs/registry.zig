@@ -409,8 +409,6 @@ pub const Registry = struct {
 
     pub fn queryResource(self: *Registry, comptime Resource: type) Error!ResourceQueryIterator(Resource) {
         const resource_name = @typeName(Resource);
-        log.info("querying for resource [{s}]...", .{ resource_name });
-
         if (self.resources.get(resource_name)) |type_erased_resource_storage| {
             const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, Resource);
             return ResourceQueryIterator(Resource).init(self.allocator, resource_storage.resources.items);
@@ -422,13 +420,13 @@ pub const Registry = struct {
 
     pub fn pushResource(self: *Registry, resource: anytype) !void {
         const resource_type = @TypeOf(resource);
-        // const resource_name = @typeName(resource_type);
+        const resource_name = @typeName(resource_type);
 
-        if (self.resources.getPtr(resource_type)) |type_erased_resource_storage| {
+        if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
             const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, resource_type);
             try resource_storage.resources.append(resource);
         } else {
-            log.err("trying to push unregistered resource [{s}]!", .{ resource_type });
+            log.err("trying to push unregistered resource [{s}]!", .{ resource_name });
             return Error.UnregisteredResource;
         }
     }
