@@ -405,6 +405,8 @@ pub const Registry = struct {
         if (!entry.found_existing) {
             entry.value_ptr.* = try TypeErasedResourceStorage.init(self.allocator, Resource);
         }
+        
+        log.info("registered resource [{s}]", .{ resource_name });
     }
 
     pub fn queryResource(self: *Registry, comptime Resource: type) Error!ResourceQueryIterator(Resource) {
@@ -414,7 +416,7 @@ pub const Registry = struct {
             return ResourceQueryIterator(Resource).init(self.allocator, resource_storage.resources.items);
         }
 
-        log.err("trying to query unregistered resource [{s}]!", .{ resource_name });
+        log.err("tried to query unregistered resource [{s}]!", .{ resource_name });
         return Error.UnregisteredResource;
     }
 
@@ -426,9 +428,11 @@ pub const Registry = struct {
             const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, resource_type);
             try resource_storage.resources.append(resource);
         } else {
-            log.err("trying to push unregistered resource [{s}]!", .{ resource_name });
+            log.err("tried to push unregistered resource [{s}]!", .{ resource_name });
             return Error.UnregisteredResource;
         }
+
+        log.info("pushed resource [{s}]", .{ resource_name });
     }
 
     pub fn clearResource(self: *Registry, comptime Resource: type) Error!void {
@@ -436,7 +440,7 @@ pub const Registry = struct {
         if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
             type_erased_resource_storage.clear();
         } else {
-            log.err("trying to clear unregistered resource [{s}]!", .{ resource_name });
+            log.err("tried to clear unregistered resource [{s}]!", .{ resource_name });
             return Error.UnregisteredResource;
         }
     }
