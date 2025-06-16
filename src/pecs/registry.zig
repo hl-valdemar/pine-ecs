@@ -425,30 +425,30 @@ pub const Registry = struct {
         if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
             const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, resource_type);
             try resource_storage.resources.append(resource);
+        } else {
+            log.err("trying to push unregistered resource [{s}]!", .{ resource_name });
+            return Error.UnregisteredResource;
         }
-
-        log.err("trying to push unregistered resource [{s}]!", .{ resource_name });
-        return Error.UnregisteredResource;
     }
 
     pub fn clearResource(self: *Registry, comptime Resource: type) Error!void {
         const resource_name = @typeName(Resource);
         if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
             type_erased_resource_storage.clear();
+        } else {
+            log.err("trying to clear unregistered resource [{s}]!", .{ resource_name });
+            return Error.UnregisteredResource;
         }
-
-        log.err("trying to clear unregistered resource [{s}]!", .{ resource_name });
-        return Error.UnregisteredResource;
     }
 
     pub fn removeResource(self: *Registry, comptime Resource: type, idx: usize) Error!void {
         const resource_name = @typeName(Resource);
         if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
             type_erased_resource_storage.remove(idx);
+        } else {
+            log.err("trying to remove unregistered resource [{s}]!", .{ resource_name });
+            return Error.UnregisteredResource;
         }
-
-        log.err("trying to remove unregistered resource [{s}]!", .{ resource_name });
-        return Error.UnregisteredResource;
     }
 
     pub fn addPlugin(self: *Registry, plugin: Plugin) !void {
