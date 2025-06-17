@@ -150,15 +150,26 @@ pub const Registry = struct {
     }
 
     /// Returns true if the entity was succesfully removed, false otherwise.
-    pub fn destroyEntity(self: *Registry, entity: EntityID) Error!bool {
+    pub fn destroyEntity(self: *Registry, entity: EntityID) Error!void {
         const entity_ptr = self.entities.get(entity) orelse return Error.NoSuchEntity;
-        var archetype = self.archetypes.getPtr(entity_ptr.archetype_hash) orelse return Error.NoSuchArchetype;
+        var archetype = self.archetypes.getPtr(entity_ptr.archetype_hash) orelse {
+            return Error.NoSuchArchetype;
+        };
 
-        const original_entity_idx = entity_ptr.entity_idx; // store old index before remove invalidates entity_ptr
+        // store old index before remove invalidates entity_ptr
+        const original_entity_idx = entity_ptr.entity_idx;
 
         // remove entity data from archetype
         const removed_result = archetype.remove(original_entity_idx);
-        std.debug.assert(removed_result.removed_id == entity);
+
+        // assert correctness
+        if (removed_result.removed_id != entity) {
+            log.err(
+                "removed entity ID {d} does not correspond with requested entity ID {d}",
+                .{ removed_result.removed_id, entity },
+            );
+            return Error.InternalInconsistency;
+        }
 
         // handle the swapped entity
         if (removed_result.swapped_id) |swapped_entity_id| {
@@ -167,13 +178,16 @@ pub const Registry = struct {
                 swapped_entity_ptr_ptr.*.entity_idx = original_entity_idx;
             } else {
                 // should not happen in consistent state
-                log.err("swapped entity ID {d} not found in registry during destroyEntity!", .{swapped_entity_id});
+                log.err(
+                    "swapped entity ID {d} not found in registry during destroyEntity!",
+                    .{swapped_entity_id},
+                );
                 return Error.InternalInconsistency;
             }
         }
 
         // remove entity id from registry's entities list
-        return self.entities.remove(entity);
+        _ = self.entities.remove(entity); // at this point always true
     }
 
     /// Create a new archetype with a new component type.
@@ -479,5 +493,89 @@ pub const Registry = struct {
 
     pub fn systemTags(self: *Registry) [][]const u8 {
         return self.system_manager.tags();
+    }
+
+    ///////////////////////////////////
+
+    const UpdateBuffer = @import("component.zig").UpdateBuffer;
+    const BufferedEntityView = @import("query.zig").BufferedEntityView;
+    const BufferedComponentQueryIterator = @import("query.zig").BufferedComponentQueryIterator;
+
+    pub fn queryComponentsBuffered(
+        self: *Registry,
+        component_types: anytype,
+        update_buffer: *UpdateBuffer,
+    ) !BufferedComponentQueryIterator(component_types) {
+        const ComponentTuple = @TypeOf(component_types);
+        const component_info = @typeInfo(ComponentTuple);
+
+        if (component_info != .@"struct" or !component_info.@"struct".is_tuple) {
+            return QueryError.InvalidQuery;
+        }
+
+        // verify each element in the tuple is a type
+        inline for (0..component_info.@"struct".fields.len) |i| {
+            const field_name = component_info.@"struct".fields[i].name;
+            if (@TypeOf(@field(component_types, field_name)) != type) {
+                return QueryError.InvalidQuery;
+            }
+        }
+
+        const component_count = component_info.@"struct".fields.len;
+
+        // buffer to collect entity views
+        var buffer = std.ArrayList(BufferedEntityView(component_types)).init(self.allocator);
+        defer buffer.deinit();
+
+        // store component type names for matching
+        var component_names: [component_count][]const u8 = undefined;
+        inline for (0..component_count) |i| {
+            const field_name = component_info.@"struct".fields[i].name;
+            const ComponentType = @field(component_types, field_name);
+            component_names[i] = @typeName(ComponentType);
+        }
+
+        // find archetypes that contain all required components
+        var archetype_iter = self.archetypes.valueIterator();
+        next_archetype: while (archetype_iter.next()) |archetype| {
+            // skip archetypes that don't have all required components
+            for (component_names) |component_name| {
+                if (!archetype.components.contains(component_name)) {
+                    continue :next_archetype;
+                }
+            }
+
+            // archetype has all components, process its entities
+            for (archetype.entities.items, 0..) |entity_id, entity_idx| {
+                var component_ptrs: [component_count]*anyopaque = undefined;
+
+                // fill component pointers array
+                inline for (0..component_count) |i| {
+                    const component_name = component_names[i];
+
+                    // get component storage for this type
+                    const storage_ptr = archetype.components.get(component_name).?;
+
+                    // get a raw pointer to the component
+                    component_ptrs[i] = storage_ptr.getComponentPtr(entity_idx);
+                }
+
+                // create entity view with the component pointers
+                try buffer.append(BufferedEntityView(component_types){
+                    .base_view = EntityView(component_types).init(self, entity_id, component_ptrs),
+                    .update_buffer = update_buffer,
+                });
+            }
+        }
+
+        return try BufferedComponentQueryIterator(component_types).init(self.allocator, self, buffer.items);
+    }
+
+    /// Apply all buffered updates
+    pub fn applyBufferedUpdates(_: *Registry, update_buffer: *UpdateBuffer) void {
+        for (update_buffer.updates.items) |update| {
+            update.copy_fn(update.component_ptr, update.new_value_bytes);
+        }
+        update_buffer.clear();
     }
 };

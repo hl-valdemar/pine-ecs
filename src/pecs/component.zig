@@ -1,6 +1,8 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
+const EntityID = @import("registry.zig").EntityID;
+
 pub const ComponentVTable = struct {
     deinit: *const fn (Allocator, *anyopaque) void,
     swapRemove: *const fn (*anyopaque, usize) void,
@@ -147,3 +149,40 @@ pub fn ComponentStorage(comptime Component: type) type {
         }
     };
 }
+
+//////////////////////////////////
+
+pub const ComponentUpdate = struct {
+    entity_id: EntityID,
+    component_type_name: []const u8,
+    component_ptr: *anyopaque,
+    new_value_bytes: []u8, // store the new value as bytes
+    copy_fn: *const fn (*anyopaque, []const u8) void,
+};
+
+pub const UpdateBuffer = struct {
+    allocator: Allocator,
+    updates: std.ArrayList(ComponentUpdate),
+
+    pub fn init(allocator: Allocator) UpdateBuffer {
+        return .{
+            .allocator = allocator,
+            .updates = std.ArrayList(ComponentUpdate).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *UpdateBuffer) void {
+        // Free all stored update data
+        for (self.updates.items) |update| {
+            self.allocator.free(update.new_value_bytes);
+        }
+        self.updates.deinit();
+    }
+
+    pub fn clear(self: *UpdateBuffer) void {
+        for (self.updates.items) |update| {
+            self.allocator.free(update.new_value_bytes);
+        }
+        self.updates.clearRetainingCapacity();
+    }
+};

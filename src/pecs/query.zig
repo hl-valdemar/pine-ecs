@@ -27,6 +27,18 @@ pub fn EntityView(comptime component_types: anytype) type {
         entity_id: EntityID,
         component_ptrs: [component_count]*anyopaque,
 
+        pub fn init(
+            registry: *Registry,
+            entity_id: EntityID,
+            component_ptrs: [component_count]*anyopaque,
+        ) Self {
+            return Self{
+                .registry = registry,
+                .entity_id = entity_id,
+                .component_ptrs = component_ptrs,
+            };
+        }
+
         /// Get a specific component by type.
         pub fn get(self: *const Self, comptime ComponentType: type) ?*ComponentType {
             comptime var i = 0;
@@ -134,6 +146,128 @@ pub fn ResourceQueryIterator(comptime Resource: type) type {
 
             // free the resources array when iteration is complete
             if (self.index == self.resources.len and !self.freed)
+                self.deinit();
+
+            return null;
+        }
+    };
+}
+
+///////////////////////////////////////
+
+const UpdateBuffer = @import("component.zig").UpdateBuffer;
+
+pub fn BufferedEntityView(comptime component_types: anytype) type {
+    const BaseView = EntityView(component_types);
+
+    return struct {
+        const Self = @This();
+
+        base_view: BaseView,
+        update_buffer: *UpdateBuffer,
+
+        /// Get a component for reading (same as regular EntityView)
+        pub fn get(self: *const Self, comptime ComponentType: type) ?*const ComponentType {
+            return self.base_view.get(ComponentType);
+        }
+
+        /// Get a mutable component that queues updates
+        pub fn getMut(self: *Self, comptime ComponentType: type) ?BufferedComponent(ComponentType) {
+            if (self.base_view.get(ComponentType)) |component_ptr| {
+                return BufferedComponent(ComponentType){
+                    .ptr = component_ptr,
+                    .entity_id = self.base_view.entity_id,
+                    .update_buffer = self.update_buffer,
+                };
+            }
+            return null;
+        }
+
+        pub fn id(self: *const Self) EntityID {
+            return self.base_view.entity_id;
+        }
+    };
+}
+
+pub fn BufferedComponent(comptime ComponentType: type) type {
+    return struct {
+        const Self = @This();
+
+        ptr: *ComponentType,
+        entity_id: EntityID,
+        update_buffer: *UpdateBuffer,
+
+        /// Queue a new value for this component
+        pub fn set(self: Self, new_value: ComponentType) !void {
+            const bytes = try self.update_buffer.allocator.alloc(u8, @sizeOf(ComponentType));
+            @memcpy(bytes, std.mem.asBytes(&new_value));
+
+            const copy_fn = struct {
+                fn copy(dst_ptr: *anyopaque, src_bytes: []const u8) void {
+                    const typed_dst: *ComponentType = @ptrCast(@alignCast(dst_ptr));
+                    typed_dst.* = std.mem.bytesToValue(ComponentType, src_bytes[0..@sizeOf(ComponentType)]);
+                }
+            }.copy;
+
+            try self.update_buffer.updates.append(.{
+                .entity_id = self.entity_id,
+                .component_type_name = @typeName(ComponentType),
+                .component_ptr = self.ptr,
+                .new_value_bytes = bytes,
+                .copy_fn = copy_fn,
+            });
+        }
+
+        /// Get read-only access to current value
+        pub fn get(self: Self) *const ComponentType {
+            return self.ptr;
+        }
+    };
+}
+
+/// Iterator for component queries.
+///
+/// Note: this iterator clones the entity views under the assumption of
+/// potential changes to the underlying data. This may be a good place to
+/// optimize for memory consumption if this assumption proves naught.
+pub fn BufferedComponentQueryIterator(comptime component_types: anytype) type {
+    return struct {
+        const Self = @This();
+
+        allocator: Allocator,
+        registry: *Registry,
+        views: []BufferedEntityView(component_types),
+        index: usize = 0,
+        freed: bool = false,
+
+        pub fn init(
+            allocator: Allocator,
+            registry: *Registry,
+            entity_views: []BufferedEntityView(component_types),
+        ) !Self {
+            return Self{
+                .allocator = allocator,
+                .registry = registry,
+                .views = try allocator.dupe(BufferedEntityView(component_types), entity_views),
+                .index = 0,
+                .freed = false,
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            self.allocator.free(self.views);
+            self.freed = true;
+        }
+
+        pub fn next(self: *Self) ?*BufferedEntityView(component_types) {
+            defer self.index += 1; // increment when done
+
+            if (self.index < self.views.len) {
+                return &self.views[self.index];
+            }
+
+            // free the views array when iteration is complete
+            if (self.index == self.views.len and !self.freed)
                 self.deinit();
 
             return null;
