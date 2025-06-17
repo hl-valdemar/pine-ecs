@@ -224,7 +224,6 @@ pub fn main() !void {
     std.debug.print("Resouces: {}\n", .{resource_query_result.resources.len});
     while (resource_query_result.next()) |resource| {
         std.debug.print("∟ {any}\n", .{resource});
-        resource.val += 10;
     }
 
     var resource_query_result_2 = try registry.queryResource(SimpleResource);

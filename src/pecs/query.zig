@@ -48,6 +48,10 @@ pub fn EntityView(comptime component_types: anytype) type {
 }
 
 /// Iterator for component queries.
+///
+/// Note: this iterator clones the entity views under the assumption of
+/// potential changes to the underlying data. This may be a good place to
+/// optimize for memory consumption if this assumption proves naught.
 pub fn ComponentQueryIterator(comptime component_types: anytype) type {
     return struct {
         const Self = @This();
@@ -78,23 +82,26 @@ pub fn ComponentQueryIterator(comptime component_types: anytype) type {
         }
 
         pub fn next(self: *Self) ?EntityView(component_types) {
+            defer self.index += 1; // increment when done
+
             if (self.index < self.views.len) {
-                const view = self.views[self.index];
-                self.index += 1;
-
-                // free the views array when iteration is complete
-                if (self.index == self.views.len) {
-                    self.allocator.free(self.views);
-                }
-
-                return view;
+                return self.views[self.index];
             }
+
+            // free the views array when iteration is complete
+            if (self.index == self.views.len and !self.freed)
+                self.deinit();
+
             return null;
         }
     };
 }
 
 /// Iterator of mutable entries for a given resource.
+///
+/// Note: this iterator clones the resources under the assumption of
+/// potential changes to the underlying data. This may be a good place to
+/// optimize for memory consumption if this assumption proves naught.
 pub fn ResourceQueryIterator(comptime Resource: type) type {
     return struct {
         const Self = @This();
@@ -104,10 +111,10 @@ pub fn ResourceQueryIterator(comptime Resource: type) type {
         index: usize = 0,
         freed: bool = false,
 
-        pub fn init(allocator: Allocator, resources: []Resource) Self {
+        pub fn init(allocator: Allocator, resources: []Resource) !Self {
             return Self{
                 .allocator = allocator,
-                .resources = resources,
+                .resources = try allocator.dupe(Resource, resources),
                 .index = 0,
                 .freed = false,
             };
@@ -118,12 +125,17 @@ pub fn ResourceQueryIterator(comptime Resource: type) type {
             self.freed = true;
         }
 
-        pub fn next(self: *Self) ?*Resource {
+        pub fn next(self: *Self) ?Resource {
+            defer self.index += 1; // increment when done
+
             if (self.index < self.resources.len) {
-                const resource = &self.resources[self.index];
-                self.index += 1;
-                return resource;
+                return self.resources[self.index];
             }
+
+            // free the resources array when iteration is complete
+            if (self.index == self.resources.len and !self.freed)
+                self.deinit();
+
             return null;
         }
     };

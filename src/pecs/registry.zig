@@ -409,13 +409,12 @@ pub const Registry = struct {
         log.info("registered resource [{s}]", .{ resource_name });
     }
 
-    pub fn queryResource(self: *Registry, comptime Resource: type) Error!ResourceQueryIterator(Resource) {
+    pub fn queryResource(self: *Registry, comptime Resource: type) !ResourceQueryIterator(Resource) {
         const resource_name = @typeName(Resource);
         if (self.resources.get(resource_name)) |type_erased_resource_storage| {
             const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, Resource);
-            return ResourceQueryIterator(Resource).init(self.allocator, resource_storage.resources.items);
+            return try ResourceQueryIterator(Resource).init(self.allocator, resource_storage.resources.items);
         }
-
         // log.err("tried to query unregistered resource [{s}]!", .{ resource_name });
         return Error.UnregisteredResource;
     }
