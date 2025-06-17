@@ -26,10 +26,6 @@ pub const SystemManager = system.SystemManager;
 
 pub const Plugin = plugin.Plugin;
 
-/////////////////////
-
-pub const UpdateBuffer = component.UpdateBuffer;
-
 // private imports //
 
 const archetype = @import("pecs/archetype.zig");

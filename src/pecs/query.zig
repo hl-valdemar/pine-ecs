@@ -5,6 +5,8 @@ const reg = @import("registry.zig");
 const EntityID = reg.EntityID;
 const Registry = reg.Registry;
 
+const UpdateBuffer = @import("component.zig").UpdateBuffer;
+
 pub const QueryError = error{
     InvalidQuery,
 };
@@ -23,17 +25,14 @@ pub fn EntityView(comptime component_types: anytype) type {
     return struct {
         const Self = @This();
 
-        registry: *Registry,
         entity_id: EntityID,
         component_ptrs: [component_count]*anyopaque,
 
         pub fn init(
-            registry: *Registry,
             entity_id: EntityID,
             component_ptrs: [component_count]*anyopaque,
         ) Self {
             return Self{
-                .registry = registry,
                 .entity_id = entity_id,
                 .component_ptrs = component_ptrs,
             };
@@ -69,19 +68,16 @@ pub fn ComponentQueryIterator(comptime component_types: anytype) type {
         const Self = @This();
 
         allocator: Allocator,
-        registry: *Registry,
         views: []EntityView(component_types),
         index: usize = 0,
         freed: bool = false,
 
         pub fn init(
             allocator: Allocator,
-            registry: *Registry,
             entity_views: []EntityView(component_types),
         ) !Self {
             return Self{
                 .allocator = allocator,
-                .registry = registry,
                 .views = try allocator.dupe(EntityView(component_types), entity_views),
                 .index = 0,
                 .freed = false,
@@ -153,10 +149,6 @@ pub fn ResourceQueryIterator(comptime Resource: type) type {
     };
 }
 
-///////////////////////////////////////
-
-const UpdateBuffer = @import("component.zig").UpdateBuffer;
-
 pub fn BufferedEntityView(comptime component_types: anytype) type {
     const BaseView = EntityView(component_types);
 
@@ -166,12 +158,12 @@ pub fn BufferedEntityView(comptime component_types: anytype) type {
         base_view: BaseView,
         update_buffer: *UpdateBuffer,
 
-        /// Get a component for reading (same as regular EntityView)
+        /// Get a component for reading (same as regular EntityView).
         pub fn get(self: *const Self, comptime ComponentType: type) ?*const ComponentType {
             return self.base_view.get(ComponentType);
         }
 
-        /// Get a mutable component that queues updates
+        /// Get a mutable component that queues updates.
         pub fn getMut(self: *Self, comptime ComponentType: type) ?BufferedComponent(ComponentType) {
             if (self.base_view.get(ComponentType)) |component_ptr| {
                 return BufferedComponent(ComponentType){
@@ -197,7 +189,7 @@ pub fn BufferedComponent(comptime ComponentType: type) type {
         entity_id: EntityID,
         update_buffer: *UpdateBuffer,
 
-        /// Queue a new value for this component
+        /// Queue a new value for this component.
         pub fn set(self: Self, new_value: ComponentType) !void {
             const bytes = try self.update_buffer.allocator.alloc(u8, @sizeOf(ComponentType));
             @memcpy(bytes, std.mem.asBytes(&new_value));
@@ -218,14 +210,14 @@ pub fn BufferedComponent(comptime ComponentType: type) type {
             });
         }
 
-        /// Get read-only access to current value
+        /// Get read-only access to current value.
         pub fn get(self: Self) *const ComponentType {
             return self.ptr;
         }
     };
 }
 
-/// Iterator for component queries.
+/// Iterator for buffered component queries.
 ///
 /// Note: this iterator clones the entity views under the assumption of
 /// potential changes to the underlying data. This may be a good place to
@@ -235,19 +227,16 @@ pub fn BufferedComponentQueryIterator(comptime component_types: anytype) type {
         const Self = @This();
 
         allocator: Allocator,
-        registry: *Registry,
         views: []BufferedEntityView(component_types),
         index: usize = 0,
         freed: bool = false,
 
         pub fn init(
             allocator: Allocator,
-            registry: *Registry,
             entity_views: []BufferedEntityView(component_types),
         ) !Self {
             return Self{
                 .allocator = allocator,
-                .registry = registry,
                 .views = try allocator.dupe(BufferedEntityView(component_types), entity_views),
                 .index = 0,
                 .freed = false,

@@ -12,8 +12,12 @@ const EntityView = query.EntityView;
 const ComponentQueryIterator = query.ComponentQueryIterator;
 const ResourceQueryIterator = query.ResourceQueryIterator;
 const QueryError = query.QueryError;
+const BufferedEntityView = query.BufferedEntityView;
+const BufferedComponentQueryIterator = query.BufferedComponentQueryIterator;
 
 const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
+const UpdateBuffer = @import("component.zig").UpdateBuffer;
+
 const TypeErasedResourceStorage = @import("resource.zig").TypeErasedResourceStorage;
 const SystemManager = @import("system.zig").SystemManager;
 const Plugin = @import("plugin.zig").Plugin;
@@ -48,7 +52,7 @@ pub const Registry = struct {
     plugins: std.ArrayList(Plugin),
 
     system_manager: SystemManager,
-
+    update_buffer: UpdateBuffer,
     config: RegistryConfig,
 
     const Error = error{
@@ -66,6 +70,7 @@ pub const Registry = struct {
             .resources = std.StringHashMap(TypeErasedResourceStorage).init(allocator),
             .plugins = std.ArrayList(Plugin).init(allocator),
             .system_manager = SystemManager.init(allocator),
+            .update_buffer = UpdateBuffer.init(allocator),
             .config = config,
         };
 
@@ -74,6 +79,8 @@ pub const Registry = struct {
             registry.archetypes.deinit();
             registry.resources.deinit();
             registry.plugins.deinit();
+            registry.system_manager.deinit();
+            registry.update_buffer.deinit();
         }
 
         // the empty archetype should always be present
@@ -106,6 +113,7 @@ pub const Registry = struct {
         self.plugins.deinit();
 
         self.system_manager.deinit();
+        self.update_buffer.deinit();
     }
 
     /// Spawn an entity with initial components.
@@ -344,8 +352,12 @@ pub const Registry = struct {
     /// }
     /// ```
     ///
-    /// NB: If the result is not consumed, it should be deinitialized manually (with `deinit`) to avoid leaking memory.
-    pub fn queryComponents(self: *Registry, component_types: anytype) !ComponentQueryIterator(component_types) {
+    /// NB: If the result is not consumed, it should be deinitialized manually (with `deinit`) to
+    /// avoid leaking memory.
+    pub fn queryComponents(
+        self: *Registry,
+        component_types: anytype,
+    ) !ComponentQueryIterator(component_types) {
         const ComponentTuple = @TypeOf(component_types);
         const component_info = @typeInfo(ComponentTuple);
 
@@ -401,15 +413,11 @@ pub const Registry = struct {
                 }
 
                 // create entity view with the component pointers
-                try buffer.append(EntityView(component_types){
-                    .registry = self,
-                    .entity_id = entity_id,
-                    .component_ptrs = component_ptrs,
-                });
+                try buffer.append(EntityView(component_types).init(entity_id, component_ptrs));
             }
         }
 
-        return try ComponentQueryIterator(component_types).init(self.allocator, self, buffer.items);
+        return try ComponentQueryIterator(component_types).init(self.allocator, buffer.items);
     }
 
     pub fn registerResource(self: *Registry, comptime Resource: type) !void {
@@ -495,16 +503,9 @@ pub const Registry = struct {
         return self.system_manager.tags();
     }
 
-    ///////////////////////////////////
-
-    const UpdateBuffer = @import("component.zig").UpdateBuffer;
-    const BufferedEntityView = @import("query.zig").BufferedEntityView;
-    const BufferedComponentQueryIterator = @import("query.zig").BufferedComponentQueryIterator;
-
     pub fn queryComponentsBuffered(
         self: *Registry,
         component_types: anytype,
-        update_buffer: *UpdateBuffer,
     ) !BufferedComponentQueryIterator(component_types) {
         const ComponentTuple = @TypeOf(component_types);
         const component_info = @typeInfo(ComponentTuple);
@@ -562,20 +563,33 @@ pub const Registry = struct {
 
                 // create entity view with the component pointers
                 try buffer.append(BufferedEntityView(component_types){
-                    .base_view = EntityView(component_types).init(self, entity_id, component_ptrs),
-                    .update_buffer = update_buffer,
+                    .base_view = EntityView(component_types).init(entity_id, component_ptrs),
+                    .update_buffer = &self.update_buffer,
                 });
             }
         }
 
-        return try BufferedComponentQueryIterator(component_types).init(self.allocator, self, buffer.items);
+        return try BufferedComponentQueryIterator(component_types).init(self.allocator, buffer.items);
     }
 
-    /// Apply all buffered updates
-    pub fn applyBufferedUpdates(_: *Registry, update_buffer: *UpdateBuffer) void {
-        for (update_buffer.updates.items) |update| {
+    /// Apply all buffered updates.
+    ///
+    /// NB: if a component has been updated twice or more in one pass, the last update will take
+    /// precedence over the others.
+    pub fn applyBufferedUpdates(self: *Registry) void {
+        for (self.update_buffer.updates.items) |update| {
             update.copy_fn(update.component_ptr, update.new_value_bytes);
         }
-        update_buffer.clear();
+        self.update_buffer.clear();
+    }
+
+    /// Clear buffered updates without applying them.
+    pub fn discardBufferedUpdates(self: *Registry) void {
+        self.update_buffer.clear();
+    }
+
+    /// Check if there are pending updates.
+    pub fn hasPendingUpdates(self: *Registry) bool {
+        return self.update_buffer.updates.items.len > 0;
     }
 };

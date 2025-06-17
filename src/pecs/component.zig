@@ -150,8 +150,6 @@ pub fn ComponentStorage(comptime Component: type) type {
     };
 }
 
-//////////////////////////////////
-
 pub const ComponentUpdate = struct {
     entity_id: EntityID,
     component_type_name: []const u8,
@@ -172,7 +170,7 @@ pub const UpdateBuffer = struct {
     }
 
     pub fn deinit(self: *UpdateBuffer) void {
-        // Free all stored update data
+        // free all stored update data
         for (self.updates.items) |update| {
             self.allocator.free(update.new_value_bytes);
         }

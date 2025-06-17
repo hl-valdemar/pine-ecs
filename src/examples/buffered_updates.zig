@@ -34,16 +34,10 @@ pub fn main() !void {
         Velocity{ .x = 3, .y = 1 },
     });
 
-    // it's possible to query for components with the intention of batching updates
-    // note: this currently requires that an update buffer be passed
-    var update_buffer = pecs.UpdateBuffer.init(allocator);
-    defer update_buffer.deinit();
-
     // now query and register updates
-    var query = try registry.queryComponentsBuffered(.{ Position, Velocity }, &update_buffer);
+    var query = try registry.queryComponentsBuffered(.{ Position, Velocity });
     while (query.next()) |entity| {
         const velocity = entity.get(Velocity).?;
-
         if (entity.getMut(Position)) |pos| {
             const current = pos.get();
             try pos.set(.{
@@ -56,7 +50,7 @@ pub fn main() !void {
     try queryAndLog(&registry, "BEFORE");
 
     // finally, apply all updates at once
-    registry.applyBufferedUpdates(&update_buffer);
+    registry.applyBufferedUpdates();
 
     try queryAndLog(&registry, "AFTER");
 }
