@@ -140,7 +140,7 @@ pub const SystemManager = struct {
         // process all untagged systems
         for (self.untagged_systems.items) |system| {
             system.process(registry) catch |err| {
-                log.warn("failed to process system: {}\n", .{ err });
+                log.warn("failed to process system: {}\n", .{err});
             };
         }
     }

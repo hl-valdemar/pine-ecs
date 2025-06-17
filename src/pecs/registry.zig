@@ -405,8 +405,8 @@ pub const Registry = struct {
         if (!entry.found_existing) {
             entry.value_ptr.* = try TypeErasedResourceStorage.init(self.allocator, Resource);
         }
-        
-        log.info("registered resource [{s}]", .{ resource_name });
+
+        log.info("registered resource [{s}]", .{resource_name});
     }
 
     pub fn queryResource(self: *Registry, comptime Resource: type) !ResourceQueryIterator(Resource) {
