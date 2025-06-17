@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) !void {
             continue;
         }
 
-        std.debug.print("[building...] {s}{s}\n", .{ examples_path, file.name });
+        // std.debug.print("[building...] {s}{s}\n", .{ examples_path, file.name });
 
         const allocator = std.heap.page_allocator;
         const full_path = std.fmt.allocPrint(allocator, "{s}{s}", .{ examples_path, file.name }) catch "format failed";
