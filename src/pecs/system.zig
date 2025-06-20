@@ -5,26 +5,29 @@ const log = @import("log.zig");
 
 const Registry = @import("registry.zig").Registry;
 
+/// Trait defining system behavior.
+///
+/// NB: all systems must implement this.
 pub fn SystemTrait(comptime SystemType: type) type {
     return struct {
         pub fn validate() void {
-            // Check if required functions exist with correct signatures
+            // check if required functions exist with correct signatures
             if (!@hasDecl(SystemType, "init") or
-                @TypeOf(SystemType.init) != fn (Allocator) anyerror!SystemType)
+                @TypeOf(SystemType.init) == fn (Allocator) anyerror!SystemType)
             {
-                @compileError("System type must have `init(Allocator) anyerror!SystemType`");
+                @compileError("System type must have function `init(Allocator) anyerror!SystemType`");
             }
 
             if (!@hasDecl(SystemType, "deinit") or
                 @TypeOf(SystemType.deinit) != fn (*SystemType) void)
             {
-                @compileError("System type must have `deinit(*Self) void`");
+                @compileError("System type must have function `deinit(*Self) void`");
             }
 
             if (!@hasDecl(SystemType, "process") or
                 @TypeOf(SystemType.process) != fn (*SystemType, *Registry) anyerror!void)
             {
-                @compileError("System type must have `process(*Self, *Registry) anyerror!void`");
+                @compileError("System type must have function `process(*Self, *Registry) anyerror!void`");
             }
         }
     };
