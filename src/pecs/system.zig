@@ -13,21 +13,21 @@ pub fn SystemTrait(comptime SystemType: type) type {
                 @TypeOf(SystemType.init) != fn (Allocator) anyerror!SystemType)
             {
                 @compileLog("INVALID SYSTEM REGISTERED", SystemType);
-                @compileError("System type must have function `init(Allocator) anyerror!Self`");
+                @compileError("System type must have `pub fn init(Allocator) anyerror!Self`. Did you forget to make the function public?");
             }
 
             if (!@hasDecl(SystemType, "deinit") or
                 @TypeOf(SystemType.deinit) != fn (*SystemType) void)
             {
                 @compileLog("INVALID SYSTEM REGISTERED", SystemType);
-                @compileError("System type must have function `deinit(*Self) void`");
+                @compileError("System type must have `pub fn deinit(*Self) void`. Did you forget to make the function public?");
             }
 
             if (!@hasDecl(SystemType, "process") or
                 @TypeOf(SystemType.process) != fn (*SystemType, *Registry) anyerror!void)
             {
                 @compileLog("INVALID SYSTEM REGISTERED", SystemType);
-                @compileError("System type must have function `process(*Self, *Registry) anyerror!void`");
+                @compileError("System type must have `pub fn process(*Self, *Registry) anyerror!void`. Did you forget to make the function public?");
             }
         }
     };

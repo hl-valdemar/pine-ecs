@@ -10,8 +10,8 @@ pub const std_options = std.Options{
 const Player = struct {}; // just a player tag
 const Name = struct { value: []const u8 };
 const Health = struct { value: u8 };
-const Position = struct { x: f32, y: f32 };
-const Velocity = struct { x: f32, y: f32 };
+const Position = struct { x: i32, y: i32 };
+const Velocity = struct { x: i32, y: i32 };
 
 pub fn main() !void {
     // choose an allocator
@@ -26,14 +26,14 @@ pub fn main() !void {
     defer registry.deinit();
 
     // register systems
-    // try registry.registerSystem(GravitySystem);
+    try registry.registerSystem(GravitySystem);
 
     // use the spawn command to easily create an entity and add components
     _ = try registry.spawn(.{
         Player{},
         Name{ .value = "Daxter" },
         Health{ .value = 3 },
-        Position{ .x = 0, .y = 0 },
+        Position{ .x = 0, .y = 4 },
         Velocity{ .x = 0, .y = 0 },
     });
 
@@ -46,16 +46,17 @@ pub fn main() !void {
 }
 
 const GravitySystem = struct {
-    fn init(_: std.mem.Allocator) anyerror!GravitySystem {
+    pub fn init(_: std.mem.Allocator) anyerror!GravitySystem {
         return GravitySystem{};
     }
 
-    fn deinit(_: *GravitySystem) void {}
+    pub fn deinit(_: *GravitySystem) void {}
 
-    fn process(_: *GravitySystem, registry: *pecs.Registry) anyerror!void {
-        const gravity = 9.82;
+    pub fn process(_: *GravitySystem, registry: *pecs.Registry) anyerror!void {
+        const gravity = 9;
+
         var entities = try registry.queryComponents(.{ Position, Velocity });
-        for (entities.next()) |entity| {
+        while (entities.next()) |entity| {
             const position = entity.get(Position).?;
             const velocity = entity.get(Velocity).?;
 
