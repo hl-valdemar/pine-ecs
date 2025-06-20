@@ -57,14 +57,14 @@ pub fn main() !void {
 
 // simple helper function
 fn queryAndLog(registry: *pecs.Registry, moment: []const u8) !void {
-    var result = try registry.queryComponents(.{ Position, Velocity });
+    var entities = try registry.queryComponents(.{ Position, Velocity });
 
     std.debug.print(
         "\nEntities with position and velocity {s} buffered update: {}\n",
-        .{ moment, result.views.len },
+        .{ moment, entities.views.len },
     );
 
-    while (result.next()) |entity| {
+    while (entities.next()) |entity| {
         std.debug.print("\n", .{});
         std.debug.print("  Entity ID: {d}\n", .{entity.entity_id});
         std.debug.print("  ∟ Position component: {any}\n", .{entity.get(Position).?});

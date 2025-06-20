@@ -59,14 +59,14 @@ pub fn main() !void {
 
 // simple helper function
 fn queryAndLog(registry: *pecs.Registry, moment: []const u8) !void {
-    var result = try registry.queryComponents(.{ Player, Name, Health });
+    var entities = try registry.queryComponents(.{ Player, Name, Health });
 
     std.debug.print(
         "\nEntities with player, name, and health {s}: {}\n",
-        .{ moment, result.views.len },
+        .{ moment, entities.views.len },
     );
 
-    while (result.next()) |entity| {
+    while (entities.next()) |entity| {
         std.debug.print("\n", .{});
         std.debug.print("  Entity ID: {d}\n", .{entity.entity_id});
         std.debug.print("  ∟ Player component: {any}\n", .{entity.get(Player).?});

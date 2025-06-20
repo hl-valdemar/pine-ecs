@@ -5,28 +5,28 @@ const log = @import("log.zig");
 
 const Registry = @import("registry.zig").Registry;
 
-/// Trait defining system behavior.
-///
-/// NB: all systems must implement this.
 pub fn SystemTrait(comptime SystemType: type) type {
     return struct {
         pub fn validate() void {
             // check if required functions exist with correct signatures
             if (!@hasDecl(SystemType, "init") or
-                @TypeOf(SystemType.init) == fn (Allocator) anyerror!SystemType)
+                @TypeOf(SystemType.init) != fn (Allocator) anyerror!SystemType)
             {
-                @compileError("System type must have function `init(Allocator) anyerror!SystemType`");
+                @compileLog("INVALID SYSTEM REGISTERED", SystemType);
+                @compileError("System type must have function `init(Allocator) anyerror!Self`");
             }
 
             if (!@hasDecl(SystemType, "deinit") or
                 @TypeOf(SystemType.deinit) != fn (*SystemType) void)
             {
+                @compileLog("INVALID SYSTEM REGISTERED", SystemType);
                 @compileError("System type must have function `deinit(*Self) void`");
             }
 
             if (!@hasDecl(SystemType, "process") or
                 @TypeOf(SystemType.process) != fn (*SystemType, *Registry) anyerror!void)
             {
+                @compileLog("INVALID SYSTEM REGISTERED", SystemType);
                 @compileError("System type must have function `process(*Self, *Registry) anyerror!void`");
             }
         }
@@ -170,7 +170,11 @@ pub const SystemManager = struct {
 
         // process all tagged systems
         const system_tags = self.tagged_systems.keys();
-        for (system_tags) |tag| self.processTagged(registry, tag);
+        for (system_tags) |tag| {
+            self.processTagged(registry, tag) catch |err| {
+                log.warn("failed to process system tagged '{s}': {}\n", .{ tag, err });
+            };
+        }
     }
 
     /// Return a list of registered tags.
