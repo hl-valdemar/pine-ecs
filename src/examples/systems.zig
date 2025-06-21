@@ -26,7 +26,10 @@ pub fn main() !void {
     defer registry.deinit();
 
     // register systems
+    // note: 1. it is also possible to register systems with a tag
+    //       2. a request to update all systems registered with a certain tag can then be fired off
     try registry.registerSystem(GravitySystem);
+    // try registry.registerSystem(GravitySystem, "update");
 
     // use the spawn command to easily create an entity and add components
     _ = try registry.spawn(.{
@@ -41,10 +44,12 @@ pub fn main() !void {
 
     // process all systems
     registry.processSystems();
+    // registry.processSystemsTagged("update");
 
     try queryAndLog(&registry, "AFTER systems processed");
 }
 
+/// Simple (and probably incorrectly calculated) gravity system.
 const GravitySystem = struct {
     pub fn init(_: std.mem.Allocator) anyerror!GravitySystem {
         return GravitySystem{};
