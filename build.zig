@@ -47,6 +47,7 @@ pub fn build(b: *std.Build) !void {
     while (try it.next()) |file| {
         if (file.kind != .file) continue;
 
+        // Build path
         const allocator = std.heap.page_allocator;
         const full_path = std.fmt.allocPrint(allocator, "{s}{s}", .{ examples_path, file.name }) catch "format failed";
         defer allocator.free(full_path);
@@ -60,6 +61,7 @@ pub fn build(b: *std.Build) !void {
 
         exe_mod.addImport("pecs", lib_mod);
 
+        // Extract name
         var words = std.mem.splitAny(u8, file.name, ".");
         const example_name = words.next().?;
 
