@@ -6,28 +6,41 @@ const log = @import("log.zig");
 const Registry = @import("registry.zig").Registry;
 
 pub fn SystemTrait(comptime SystemType: type) type {
+    const InitFunc = fn (Allocator) anyerror!SystemType;
+    const DeinitFunc = fn (*SystemType) void;
+    const ProcessFunc = fn (*SystemType, *Registry) anyerror!void;
+
     return struct {
         pub fn validate() void {
             // check if required functions exist with correct signatures
             if (!@hasDecl(SystemType, "init") or
-                @TypeOf(SystemType.init) != fn (Allocator) anyerror!SystemType)
+                @TypeOf(SystemType.init) != InitFunc)
             {
                 @compileLog("INVALID SYSTEM REGISTERED", SystemType);
-                @compileError("System type must have `pub fn init(Allocator) anyerror!Self`. Did you forget to make the function public?");
+                @compileError(
+                    \\System type must have `pub fn init(Allocator) anyerror!Self`.
+                    \\Did you make the function public?"
+                );
             }
 
             if (!@hasDecl(SystemType, "deinit") or
-                @TypeOf(SystemType.deinit) != fn (*SystemType) void)
+                @TypeOf(SystemType.deinit) != DeinitFunc)
             {
                 @compileLog("INVALID SYSTEM REGISTERED", SystemType);
-                @compileError("System type must have `pub fn deinit(*Self) void`. Did you forget to make the function public?");
+                @compileError(
+                    \\System type must have `pub fn deinit(*Self) void`.
+                    \\Did you make the function public?
+                );
             }
 
             if (!@hasDecl(SystemType, "process") or
-                @TypeOf(SystemType.process) != fn (*SystemType, *Registry) anyerror!void)
+                @TypeOf(SystemType.process) != ProcessFunc)
             {
                 @compileLog("INVALID SYSTEM REGISTERED", SystemType);
-                @compileError("System type must have `pub fn process(*Self, *Registry) anyerror!void`. Did you forget to make the function public?");
+                @compileError(
+                    \\System type must have `pub fn process(*Self, *Registry) anyerror!void`.
+                    \\Did you make the function public?
+                );
             }
         }
     };

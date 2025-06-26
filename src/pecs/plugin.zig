@@ -8,7 +8,7 @@ const Registry = @import("registry.zig").Registry;
 ///     const Health = struct { current: f32, max: f32 };
 ///     const Damage = struct { amount: f32 };
 ///
-///     fn init(registry: *Registry) !void {
+///     fn init(registry: *Registry) anyerror!void {
 ///         try registry.registerTaggedSystem(HealthSystem, "health");
 ///         try registry.registerTaggedSystem(DamageSystem, "health");
 ///     }
