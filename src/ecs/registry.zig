@@ -448,7 +448,7 @@ pub const Registry = struct {
         var result = try self.queryResource(Resource);
         defer result.deinit();
 
-        const resource_ptr = allocator.create(?Resource);
+        const resource_ptr = try allocator.create(?Resource);
         resource_ptr.* = result.next();
 
         return resource_ptr;
