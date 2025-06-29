@@ -441,6 +441,19 @@ pub const Registry = struct {
         return Error.UnregisteredResource;
     }
 
+    /// Returns the first resource of the sort.
+    ///
+    /// NB: caller owns the returned resource.
+    pub fn querySingleResource(self: *Registry, allocator: Allocator, comptime Resource: type) !*?Resource {
+        var result = try self.queryResource(Resource);
+        defer result.deinit();
+
+        const resource_ptr = allocator.create(?Resource);
+        resource_ptr.* = result.next();
+
+        return resource_ptr;
+    }
+
     pub fn pushResource(self: *Registry, resource: anytype) !void {
         const resource_type = @TypeOf(resource);
         const resource_name = @typeName(resource_type);
