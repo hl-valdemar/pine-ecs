@@ -1,9 +1,9 @@
 const std = @import("std");
-const pecs = @import("pecs");
+const ecs = @import("pine-ecs");
 
-// use pecs' logging format
+// use pine-ecs' logging format
 pub const std_options = std.Options{
-    .logFn = pecs.log.logFn,
+    .logFn = ecs.log.logFn,
 };
 
 // declare some components
@@ -20,7 +20,7 @@ pub fn main() !void {
     defer _ = gpa.deinit();
 
     // initialize the ecs registry
-    var registry = try pecs.Registry.init(allocator, .{
+    var registry = try ecs.Registry.init(allocator, .{
         .remove_empty_archetypes = true,
     });
     defer registry.deinit();
@@ -57,7 +57,7 @@ const GravitySystem = struct {
 
     pub fn deinit(_: *GravitySystem) void {}
 
-    pub fn process(_: *GravitySystem, registry: *pecs.Registry) anyerror!void {
+    pub fn process(_: *GravitySystem, registry: *ecs.Registry) anyerror!void {
         const gravity = 9;
 
         var entities = try registry.queryComponents(.{ Position, Velocity });
@@ -72,7 +72,7 @@ const GravitySystem = struct {
 };
 
 // simple helper function
-fn queryAndLog(registry: *pecs.Registry, moment: []const u8) !void {
+fn queryAndLog(registry: *ecs.Registry, moment: []const u8) !void {
     var entities = try registry.queryComponents(.{ Position, Velocity });
 
     std.debug.print(

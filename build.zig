@@ -4,23 +4,23 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Create the library module
-    const lib_mod = b.addModule("pecs", .{
+    // create the library module
+    const lib_mod = b.addModule("pine-ecs", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    // Create static library
+    // create static library
     const lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "pecs",
+        .name = "pine-ecs",
         .root_module = lib_mod,
     });
 
     b.installArtifact(lib);
 
-    // Tests steps
+    // tests steps
     const lib_unit_tests = b.addTest(.{
         .root_module = lib_mod,
     });
@@ -30,7 +30,7 @@ pub fn build(b: *std.Build) !void {
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_lib_unit_tests.step);
 
-    // Doc steps
+    // doc steps
     const install_docs = b.addInstallDirectory(.{
         .source_dir = lib.getEmittedDocs(),
         .install_dir = .prefix,
@@ -40,14 +40,14 @@ pub fn build(b: *std.Build) !void {
     const docs_step = b.step("docs", "Install docs into zig-out/docs");
     docs_step.dependOn(&install_docs.step);
 
-    // Create executable modules for each example in src/examples/
+    // create executable modules for each example in src/examples/
     const examples_path = "src/examples/";
     var dir = try std.fs.cwd().openDir(examples_path, .{ .iterate = true });
     var it = dir.iterate();
     while (try it.next()) |file| {
         if (file.kind != .file) continue;
 
-        // Create executable module
+        // create executable module
         const full_path = b.pathJoin(&.{ examples_path, file.name });
         const exe_mod = b.createModule(.{
             .root_source_file = b.path(full_path),
@@ -55,13 +55,13 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
         });
 
-        exe_mod.addImport("pecs", lib_mod);
+        exe_mod.addImport("pine-ecs", lib_mod);
 
-        // Extract name
+        // extract name
         var words = std.mem.splitAny(u8, file.name, ".");
         const example_name = words.next().?;
 
-        // Create executable
+        // create executable
         const exe = b.addExecutable(.{
             .name = example_name,
             .root_module = exe_mod,
@@ -69,7 +69,7 @@ pub fn build(b: *std.Build) !void {
 
         b.installArtifact(exe);
 
-        // Run step
+        // run step
         const run_cmd = b.addRunArtifact(exe);
         run_cmd.step.dependOn(b.getInstallStep());
 
@@ -84,7 +84,7 @@ pub fn build(b: *std.Build) !void {
         const run_step = b.step(example_name, run_step_desc);
         run_step.dependOn(&run_cmd.step);
 
-        // Test steps
+        // test steps
         const exe_unit_tests = b.addTest(.{
             .root_module = exe_mod,
         });

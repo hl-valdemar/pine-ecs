@@ -7,7 +7,7 @@ pub const std_options = std.Options{
 
 // public exports //
 
-pub const log = @import("pecs/log.zig");
+pub const log = @import("ecs/log.zig");
 
 pub const Archetype = archetype.Archetype;
 pub const ArchetypeHashType = archetype.ArchetypeHashType;
@@ -28,10 +28,10 @@ pub const Plugin = plugin.Plugin;
 
 // private imports //
 
-const archetype = @import("pecs/archetype.zig");
-const component = @import("pecs/component.zig");
-const registry = @import("pecs/registry.zig");
-const query = @import("pecs/query.zig");
-const system = @import("pecs/system.zig");
-const resource = @import("pecs/resource.zig");
-const plugin = @import("pecs/plugin.zig");
+const archetype = @import("ecs/archetype.zig");
+const component = @import("ecs/component.zig");
+const registry = @import("ecs/registry.zig");
+const query = @import("ecs/query.zig");
+const system = @import("ecs/system.zig");
+const resource = @import("ecs/resource.zig");
+const plugin = @import("ecs/plugin.zig");
