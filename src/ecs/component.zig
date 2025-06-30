@@ -122,12 +122,6 @@ pub fn ComponentStorage(comptime Component: type) type {
         }
 
         pub fn deinit(self: *Self) void {
-            // deinit all remaining components if they have a deinit method
-            if (@hasDecl(Component, "deinit")) {
-                for (self.components.items) |*component| {
-                    component.deinit();
-                }
-            }
             self.components.deinit();
         }
 
@@ -151,11 +145,7 @@ pub fn ComponentStorage(comptime Component: type) type {
         }
 
         pub fn swapRemove(self: *Self, entity_idx: usize) void {
-            var component = self.components.swapRemove(entity_idx);
-            // call deinit on the component being removed if it has one
-            if (@hasDecl(Component, "deinit")) {
-                component.deinit();
-            }
+            _ = self.components.swapRemove(entity_idx);
         }
     };
 }
