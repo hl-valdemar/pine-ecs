@@ -151,11 +151,11 @@ pub fn ComponentStorage(comptime Component: type) type {
         }
 
         pub fn swapRemove(self: *Self, entity_idx: usize) void {
+            var component = self.components.swapRemove(entity_idx);
             // call deinit on the component being removed if it has one
             if (@hasDecl(Component, "deinit")) {
-                self.components.items[entity_idx].deinit();
+                component.deinit();
             }
-            _ = self.components.swapRemove(entity_idx);
         }
     };
 }
