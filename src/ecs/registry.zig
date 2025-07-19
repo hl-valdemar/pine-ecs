@@ -135,7 +135,7 @@ pub const Registry = struct {
 
     pub fn createEntity(self: *Registry) !EntityID {
         const new_id = self.entities.count();
-        const empty_archetype = self.archetypes.getPtr(Archetype.VOID_ARCHETYPE_HASH).?;
+        const empty_archetype = self.archetypes.getPtr(Archetype.VOID_HASH).?;
 
         // add new entity to archetype's list
         const entity_idx = empty_archetype.entities.items.len;
@@ -323,7 +323,7 @@ pub const Registry = struct {
         // remove the archetype if no entities are left in it
         if (self.config.remove_empty_archetypes and
             prev_archetype.entities.items.len == 0 and
-            prev_archetype.hash != Archetype.VOID_ARCHETYPE_HASH)
+            prev_archetype.hash != Archetype.VOID_HASH)
         {
             if (self.archetypes.fetchRemove(prev_archetype.hash)) |entry| {
                 var archetype = entry.value;

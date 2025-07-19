@@ -7,7 +7,7 @@ const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentS
 pub const ArchetypeHashType = u64;
 
 pub const Archetype = struct {
-    pub const VOID_ARCHETYPE_HASH: ArchetypeHashType = 0;
+    pub const VOID_HASH: ArchetypeHashType = 0;
 
     const RemoveResult = struct {
         removed_id: EntityID,
@@ -31,10 +31,10 @@ pub const Archetype = struct {
             .allocator = allocator,
             .entities = std.ArrayList(EntityID).init(allocator),
             .components = std.StringArrayHashMap(TypeErasedComponentStorage).init(allocator),
-            .hash = VOID_ARCHETYPE_HASH,
+            .hash = VOID_HASH,
         };
 
-        archetype.hash = VOID_ARCHETYPE_HASH;
+        archetype.hash = VOID_HASH;
 
         return archetype;
     }
