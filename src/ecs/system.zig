@@ -2,7 +2,6 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const log = @import("log.zig");
-
 const Registry = @import("registry.zig").Registry;
 
 pub fn SystemTrait(comptime SystemType: type) type {

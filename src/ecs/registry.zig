@@ -2,11 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const log = @import("log.zig");
-
-const res = @import("archetype.zig");
-const Archetype = res.Archetype;
-const ArchetypeHashType = res.ArchetypeHashType;
-
+const Plugin = @import("plugin.zig").Plugin;
 const query = @import("query.zig");
 const EntityView = query.EntityView;
 const ComponentQueryIterator = query.ComponentQueryIterator;
@@ -14,13 +10,13 @@ const ResourceQueryIterator = query.ResourceQueryIterator;
 const QueryError = query.QueryError;
 const BufferedEntityView = query.BufferedEntityView;
 const BufferedComponentQueryIterator = query.BufferedComponentQueryIterator;
-
-const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
-const UpdateBuffer = @import("component.zig").UpdateBuffer;
-
-const TypeErasedResourceStorage = @import("resource.zig").TypeErasedResourceStorage;
+const res = @import("archetype.zig");
+const Archetype = res.Archetype;
+const ArchetypeHashType = res.ArchetypeHashType;
 const SystemManager = @import("system.zig").SystemManager;
-const Plugin = @import("plugin.zig").Plugin;
+const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
+const TypeErasedResourceStorage = @import("resource.zig").TypeErasedResourceStorage;
+const UpdateBuffer = @import("component.zig").UpdateBuffer;
 
 pub const EntityID = u32;
 

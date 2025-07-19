@@ -4,7 +4,6 @@ const Allocator = std.mem.Allocator;
 const reg = @import("registry.zig");
 const EntityID = reg.EntityID;
 const Registry = reg.Registry;
-
 const UpdateBuffer = @import("component.zig").UpdateBuffer;
 
 pub const QueryError = error{
