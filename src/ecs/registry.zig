@@ -29,7 +29,7 @@ pub const EntityPointer = struct {
 };
 
 pub const RegistryConfig = struct {
-    remove_empty_archetypes: bool = false,
+    destroy_empty_archetypes: bool = false,
 };
 
 pub const Registry = struct {
@@ -321,7 +321,7 @@ pub const Registry = struct {
         std.debug.assert(remove_result.removed_id == entity);
 
         // remove the archetype if no entities are left in it
-        if (self.config.remove_empty_archetypes and
+        if (self.config.destroy_empty_archetypes and
             prev_archetype.entities.items.len == 0 and
             prev_archetype.hash != Archetype.VOID_HASH)
         {
