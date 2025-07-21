@@ -126,9 +126,35 @@ pub const Pipeline = struct {
 
     /// Execute only specific stages.
     pub fn executeStages(self: *Pipeline, registry: *Registry, stage_names: []const []const u8) !void {
-        for (stage_names) |stage_name| {
-            const stage_index = self.stage_map.get(stage_name) orelse return PipelineError.StageNotFound;
-            self.stages.items[stage_index].execute(registry);
+        // collect stage indexes
+        var stage_indexes = [_]?usize{null} ** stage_names.len;
+        for (stage_names, 0..) |stage_name, i| {
+            const stage_index = self.stage_map.get(stage_name) catch
+                log.warn("trying to execute non-registered stage '{s}': {}", .{ stage_name, PipelineError.StageNotFound });
+            stage_indexes[i] = stage_index;
+        }
+
+        // sort stages so that execution order is preserved
+        std.mem.sort(?usize, &stage_indexes, {}, struct {
+            pub fn compare(context: void, a: ?usize, b: ?usize) bool {
+                _ = context;
+
+                // handle null cases - nulls go last in for convenience
+                // (allows us to skip the rest when the first null is reached)
+                if (a == null and b == null) return false; // equal
+                if (a == null) return false; // a is null, b is not, so a goes last
+                if (b == null) return true; // b is null, a is not, so b goes last
+
+                // both are non-null, compare the actual values
+                return a.? < b.?;
+            }
+        }.compare);
+
+        // execute in order
+        for (stage_indexes) |idx| {
+            if (idx) |i| {
+                self.stages.items[i].execute(registry);
+            } else break; // break out when reaching nulls
         }
     }
 
