@@ -308,6 +308,15 @@ pub const Stage = struct {
         }
     }
 
+    pub fn addSubstageBefore(self: *Stage, name: []const u8, before: []const u8, config: StageConfig) !void {
+        if (self.substages) |pipeline| {
+            try pipeline.addStageBefore(name, before, config);
+        } else {
+            self.substages = Pipeline.init(self.allocator);
+            try self.substages.?.addStageBefore(name, before, config);
+        }
+    }
+
     pub fn removeSubstage(self: *Stage, name: []const u8) !void {
         if (self.substages) |pipeline| {
             try pipeline.removeStage(name);
