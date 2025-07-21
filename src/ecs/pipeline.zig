@@ -344,7 +344,7 @@ pub const Stage = struct {
             }
         }
 
-        log.debug("executing stage: {s}", .{self.name});
+        // log.debug("executing stage: {s}", .{self.name});
 
         // first execute the substages
         if (self.substages) |*pipeline| {
