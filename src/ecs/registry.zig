@@ -460,7 +460,7 @@ pub const Registry = struct {
 
     /// Returns the first resource of the sort.
     ///
-    /// NB: caller owns the returned resource.
+    /// NB: caller owns the returned resource (clone) - must be destroyed with allocators `.destroy(-)` method.
     pub fn querySingleResource(self: *Registry, allocator: Allocator, comptime Resource: type) !*?Resource {
         var result = try self.queryResource(Resource);
         defer result.deinit();
