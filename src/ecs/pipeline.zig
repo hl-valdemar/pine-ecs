@@ -300,7 +300,7 @@ pub const Stage = struct {
     }
 
     pub fn addSubstageAfter(self: *Stage, name: []const u8, after: []const u8, config: StageConfig) !void {
-        if (self.substages) |pipeline| {
+        if (self.substages) |*pipeline| {
             try pipeline.addStageAfter(name, after, config);
         } else {
             self.substages = Pipeline.init(self.allocator);
@@ -309,7 +309,7 @@ pub const Stage = struct {
     }
 
     pub fn addSubstageBefore(self: *Stage, name: []const u8, before: []const u8, config: StageConfig) !void {
-        if (self.substages) |pipeline| {
+        if (self.substages) |*pipeline| {
             try pipeline.addStageBefore(name, before, config);
         } else {
             self.substages = Pipeline.init(self.allocator);
