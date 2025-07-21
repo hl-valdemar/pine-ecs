@@ -19,7 +19,7 @@ pub fn main() !void {
 
     // initialize the ecs registry
     var registry = try ecs.Registry.init(allocator, .{
-        .remove_empty_archetypes = true,
+        .destroy_empty_archetypes = false,
     });
     defer registry.deinit();
 

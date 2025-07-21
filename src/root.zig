@@ -14,6 +14,7 @@ pub const ArchetypeHashType = archetype.ArchetypeHashType;
 
 pub const TypeErasedComponentStorage = component.TypeErasedComponentStorage;
 pub const TypeErasedResourceStorage = resource.TypeErasedResourceStorage;
+pub const TypeErasedSystem = system.TypeErasedSystem;
 
 pub const Registry = registry.Registry;
 pub const EntityID = registry.EntityID;
@@ -22,9 +23,12 @@ pub const EntityView = query.EntityView;
 pub const ComponentQueryIterator = query.ComponentQueryIterator;
 pub const ResourceQueryIterator = query.ResourceQueryIterator;
 
-pub const SystemManager = system.SystemManager;
-
 pub const Plugin = plugin.Plugin;
+
+pub const Pipeline = pipeline.Pipeline;
+pub const PipelineBuilder = pipeline.PipelineBuilder;
+pub const StageConfig = pipeline.StageConfig;
+pub const Stage = pipeline.Stage;
 
 // private imports //
 
@@ -35,3 +39,4 @@ const query = @import("ecs/query.zig");
 const system = @import("ecs/system.zig");
 const resource = @import("ecs/resource.zig");
 const plugin = @import("ecs/plugin.zig");
+const pipeline = @import("ecs/pipeline.zig");

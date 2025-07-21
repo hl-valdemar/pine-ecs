@@ -1,0 +1,284 @@
+// src/ecs/pipeline.zig
+const std = @import("std");
+const Allocator = std.mem.Allocator;
+
+const log = @import("log.zig");
+const Registry = @import("registry.zig").Registry;
+const SystemManager = @import("system.zig").SystemManager;
+const TypeErasedSystem = @import("system.zig").TypeErasedSystem;
+
+pub const PipelineError = error{
+    StageNotFound,
+    SystemAlreadyRegistered,
+    CircularDependency,
+    DuplicateStage,
+};
+
+/// A pipeline manages the execution order of systems through named stages.
+pub const Pipeline = struct {
+    allocator: Allocator,
+    stages: std.ArrayList(Stage),
+    stage_map: std.StringHashMap(usize), // name -> index for O(1) lookup
+
+    pub fn init(allocator: Allocator) Pipeline {
+        return .{
+            .allocator = allocator,
+            .stages = std.ArrayList(Stage).init(allocator),
+            .stage_map = std.StringHashMap(usize).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Pipeline) void {
+        for (self.stages.items) |*stage| {
+            stage.deinit();
+        }
+        self.stages.deinit();
+        self.stage_map.deinit();
+    }
+
+    /// Add a new stage to the pipeline.
+    pub fn addStage(self: *Pipeline, name: []const u8, config: StageConfig) !void {
+        if (self.stage_map.contains(name)) {
+            return PipelineError.DuplicateStage;
+        }
+
+        const stage_index = self.stages.items.len;
+
+        var stage = Stage.init(self.allocator, name, config);
+        errdefer stage.deinit();
+
+        try self.stages.append(stage);
+        errdefer _ = self.stages.pop();
+
+        try self.stage_map.put(name, stage_index);
+    }
+
+    /// Add a stage that runs after another stage.
+    pub fn addStageAfter(self: *Pipeline, name: []const u8, after: []const u8, config: StageConfig) !void {
+        const after_index = self.stage_map.get(after) orelse return PipelineError.StageNotFound;
+
+        if (self.stage_map.contains(name)) {
+            return PipelineError.DuplicateStage;
+        }
+
+        // insert new stage after the specified one
+        var stage = Stage.init(self.allocator, name, config);
+        errdefer stage.deinit();
+
+        try self.stages.insert(after_index + 1, stage);
+
+        // update indices in stage_map
+        try self.rebuildStageMap();
+    }
+
+    /// Add a stage that runs before another stage.
+    pub fn addStageBefore(self: *Pipeline, name: []const u8, before: []const u8, config: StageConfig) !void {
+        const before_index = self.stage_map.get(before) orelse return PipelineError.StageNotFound;
+
+        if (self.stage_map.contains(name)) {
+            return PipelineError.DuplicateStage;
+        }
+
+        var stage = Stage.init(self.allocator, name, config);
+        errdefer stage.deinit();
+
+        try self.stages.insert(before_index, stage);
+
+        // update indices in stage_map
+        try self.rebuildStageMap();
+    }
+
+    /// Remove a stage from the pipeline.
+    pub fn removeStage(self: *Pipeline, name: []const u8) !void {
+        const index = self.stage_map.get(name) orelse return PipelineError.StageNotFound;
+
+        var stage = self.stages.orderedRemove(index);
+        stage.deinit();
+
+        try self.rebuildStageMap();
+    }
+
+    /// Add a system to a specific stage.
+    pub fn addSystem(self: *Pipeline, stage_name: []const u8, comptime System: type) !void {
+        const stage_index = self.stage_map.get(stage_name) orelse return PipelineError.StageNotFound;
+        var stage = &self.stages.items[stage_index];
+
+        try stage.addSystem(System);
+    }
+
+    /// Add multiple systems to a stage at once.
+    pub fn addSystems(self: *Pipeline, stage_name: []const u8, comptime systems: anytype) !void {
+        const stage_index = self.stage_map.get(stage_name) orelse return PipelineError.StageNotFound;
+        var stage = &self.stages.items[stage_index];
+
+        inline for (systems) |System| {
+            try stage.addSystem(System);
+        }
+    }
+
+    /// Execute the entire pipeline.
+    pub fn execute(self: *Pipeline, registry: *Registry) void {
+        for (self.stages.items) |*stage| {
+            stage.execute(registry);
+        }
+    }
+
+    /// Execute only specific stages.
+    pub fn executeStages(self: *Pipeline, registry: *Registry, stage_names: []const []const u8) !void {
+        for (stage_names) |stage_name| {
+            const stage_index = self.stage_map.get(stage_name) orelse return PipelineError.StageNotFound;
+            self.stages.items[stage_index].execute(registry);
+        }
+    }
+
+    /// Execute stages matching a predicate.
+    pub fn executeStagesIf(self: *Pipeline, registry: *Registry, predicate: *const fn (stage_name: []const u8) bool) void {
+        for (self.stages.items) |*stage| {
+            if (predicate(stage.name)) {
+                stage.execute(registry);
+            }
+        }
+    }
+
+    /// Get a stage by name for direct manipulation.
+    pub fn getStage(self: *Pipeline, name: []const u8) ?*Stage {
+        const index = self.stage_map.get(name) orelse return null;
+        return &self.stages.items[index];
+    }
+
+    /// Check if a stage exists.
+    pub fn hasStage(self: *Pipeline, name: []const u8) bool {
+        return self.stage_map.contains(name);
+    }
+
+    /// Get all stage names in execution order.
+    pub fn getStageNames(self: *Pipeline, allocator: Allocator) ![][]const u8 {
+        var names = try allocator.alloc([]const u8, self.stages.items.len);
+        for (self.stages.items, 0..) |stage, i| {
+            names[i] = stage.name;
+        }
+        return names;
+    }
+
+    /// Print pipeline structure for debugging.
+    pub fn debugPrint(self: *Pipeline) void {
+        log.debug("pipeline structure:", .{});
+        for (self.stages.items, 0..) |stage, i| {
+            log.debug("  stage {d}: {s} ({s}, {} systems)", .{
+                i,
+                stage.name,
+                if (stage.config.parallel) "parallel" else "sequential",
+                stage.systems.items.len,
+            });
+            for (stage.systems.items, 0..) |_, j| {
+                log.debug("    system {d}", .{j});
+            }
+        }
+    }
+
+    fn rebuildStageMap(self: *Pipeline) !void {
+        self.stage_map.clearRetainingCapacity();
+        for (self.stages.items, 0..) |stage, index| {
+            try self.stage_map.put(stage.name, index);
+        }
+    }
+};
+
+pub const StageConfig = struct {
+    /// TODO: If true, systems in this stage can run in parallel (future feature).
+    parallel: bool = false,
+
+    /// If true, continue executing even if a system fails.
+    continue_on_error: bool = false,
+
+    /// Optional condition to check before running this stage.
+    run_condition: ?*const fn (*Registry) bool = null,
+
+    /// If true, stage is enabled by default.
+    enabled: bool = true,
+};
+
+pub const Stage = struct {
+    allocator: Allocator,
+    name: []const u8,
+    config: StageConfig,
+    systems: std.ArrayList(TypeErasedSystem),
+
+    pub fn init(allocator: Allocator, name: []const u8, config: StageConfig) Stage {
+        return .{
+            .allocator = allocator,
+            .name = name,
+            .config = config,
+            .systems = std.ArrayList(TypeErasedSystem).init(allocator),
+        };
+    }
+
+    pub fn deinit(self: *Stage) void {
+        for (self.systems.items) |system| {
+            system.deinit();
+        }
+        self.systems.deinit();
+    }
+
+    pub fn addSystem(self: *Stage, comptime System: type) !void {
+        const erased_system = try TypeErasedSystem.init(self.allocator, System);
+        errdefer erased_system.deinit();
+
+        try self.systems.append(erased_system);
+    }
+
+    pub fn removeSystem(self: *Stage, index: usize) void {
+        if (index >= self.systems.items.len) return;
+
+        var system = self.systems.orderedRemove(index);
+        system.deinit();
+    }
+
+    pub fn clearSystems(self: *Stage) void {
+        for (self.systems.items) |system| {
+            system.deinit();
+        }
+        self.systems.clearRetainingCapacity();
+    }
+
+    pub fn setEnabled(self: *Stage, enabled: bool) void {
+        self.config.enabled = enabled;
+    }
+
+    pub fn execute(self: *Stage, registry: *Registry) void {
+        // check if stage is enabled
+        if (!self.config.enabled) {
+            log.debug("skipping disabled stage '{s}'", .{self.name});
+            return;
+        }
+
+        // check run condition if present
+        if (self.config.run_condition) |condition| {
+            if (!condition(registry)) {
+                log.debug("skipping stage '{s}' due to run condition", .{self.name});
+                return;
+            }
+        }
+
+        log.debug("executing stage: {s}", .{self.name});
+
+        if (self.config.parallel) {
+            // TODO: implement parallel execution when needed.
+            // for now, fall back to sequential.
+            self.executeSequential(registry);
+        } else {
+            self.executeSequential(registry);
+        }
+    }
+
+    fn executeSequential(self: *Stage, registry: *Registry) void {
+        for (self.systems.items) |system| {
+            system.process(registry) catch |err| {
+                log.err("system failed in stage '{s}': {}", .{ self.name, err });
+                if (!self.config.continue_on_error) {
+                    return;
+                }
+            };
+        }
+    }
+};

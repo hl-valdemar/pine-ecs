@@ -2,6 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const log = @import("log.zig");
+const Pipeline = @import("pipeline.zig").Pipeline;
 const Plugin = @import("plugin.zig").Plugin;
 const query = @import("query.zig");
 const EntityView = query.EntityView;
@@ -13,6 +14,7 @@ const BufferedComponentQueryIterator = query.BufferedComponentQueryIterator;
 const res = @import("archetype.zig");
 const Archetype = res.Archetype;
 const ArchetypeHashType = res.ArchetypeHashType;
+const StageConfig = @import("pipeline.zig").StageConfig;
 const SystemManager = @import("system.zig").SystemManager;
 const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
 const TypeErasedResourceStorage = @import("resource.zig").TypeErasedResourceStorage;
@@ -29,6 +31,7 @@ pub const EntityPointer = struct {
 };
 
 pub const RegistryConfig = struct {
+    /// If true, remove archetypes when they have no entities.
     destroy_empty_archetypes: bool = false,
 };
 
@@ -47,7 +50,8 @@ pub const Registry = struct {
     /// Plugins bundle behavior.
     plugins: std.ArrayList(Plugin),
 
-    system_manager: SystemManager,
+    pipeline: Pipeline,
+
     update_buffer: UpdateBuffer,
     config: RegistryConfig,
 
@@ -65,7 +69,7 @@ pub const Registry = struct {
             .archetypes = std.AutoHashMap(ArchetypeHashType, Archetype).init(allocator),
             .resources = std.StringHashMap(TypeErasedResourceStorage).init(allocator),
             .plugins = std.ArrayList(Plugin).init(allocator),
-            .system_manager = SystemManager.init(allocator),
+            .pipeline = Pipeline.init(allocator),
             .update_buffer = UpdateBuffer.init(allocator),
             .config = config,
         };
@@ -75,7 +79,7 @@ pub const Registry = struct {
             registry.archetypes.deinit();
             registry.resources.deinit();
             registry.plugins.deinit();
-            registry.system_manager.deinit();
+            registry.pipeline.deinit();
             registry.update_buffer.deinit();
         }
 
@@ -108,7 +112,7 @@ pub const Registry = struct {
         }
         self.plugins.deinit();
 
-        self.system_manager.deinit();
+        self.pipeline.deinit();
         self.update_buffer.deinit();
     }
 
@@ -320,7 +324,7 @@ pub const Registry = struct {
         const remove_result = prev_archetype.remove(entity_ptr.entity_idx);
         std.debug.assert(remove_result.removed_id == entity);
 
-        // remove the archetype if no entities are left in it
+        // destroy the archetype if no entities are left in it
         if (self.config.destroy_empty_archetypes and
             prev_archetype.entities.items.len == 0 and
             prev_archetype.hash != Archetype.VOID_HASH)
@@ -328,7 +332,7 @@ pub const Registry = struct {
             if (self.archetypes.fetchRemove(prev_archetype.hash)) |entry| {
                 var archetype = entry.value;
                 archetype.deinit();
-            } else @panic("Failed to remove empty archetype!\n"); // this shouldn't happen...
+            } else @panic("failed to remove empty archetype!\n"); // this shouldn't happen...
         }
 
         try handleSwappedEntity(self, remove_result.swapped_id, entity_ptr.entity_idx);
@@ -488,29 +492,51 @@ pub const Registry = struct {
         try plugin.init_fn(self);
     }
 
-    pub fn registerSystem(self: *Registry, comptime System: type) !void {
-        try self.system_manager.registerSystem(System);
+    /// Set a custom pipeline.
+    pub fn setPipeline(self: *Registry, pipeline: Pipeline) void {
+        self.pipeline.deinit(); // deinit old pipeline
+        self.pipeline = pipeline;
     }
 
-    pub fn registerTaggedSystem(self: *Registry, comptime System: type, tag: []const u8) !void {
-        try self.system_manager.registerTaggedSystem(System, tag);
-    }
+    // /// Add a stage to the pipeline.
+    // pub fn addStage(self: *Registry, stage_name: []const u8, config: StageConfig) !void {
+    //     try self.pipeline.addStage(stage_name, config);
+    // }
 
-    pub fn processSystems(self: *Registry) void {
-        self.system_manager.processAll(self);
-    }
+    // /// Add a stage after another stage in the pipeline.
+    // pub fn addStageAfter(self: *Registry, name: []const u8, after: []const u8, config: StageConfig) !void {
+    //     try self.pipeline.addStageAfter(name, after, config);
+    // }
 
-    pub fn processSystemsUntagged(self: *Registry) void {
-        self.system_manager.processUntagged(self);
-    }
+    // /// Add a stage before another stage in the pipeline.
+    // pub fn addStageBefore(self: *Registry, name: []const u8, before: []const u8, config: StageConfig) !void {
+    //     try self.pipeline.addStageBefore(name, before, config);
+    // }
 
-    pub fn processSystemsTagged(self: *Registry, tag: []const u8) !void {
-        try self.system_manager.processTagged(self, tag);
-    }
+    // /// Remove a stage from the pipeline.
+    // pub fn removeStage(self: *Registry, name: []const u8) !void {
+    //     try self.pipeline.removeStage(name);
+    // }
 
-    pub fn systemTags(self: *Registry) [][]const u8 {
-        return self.system_manager.tags();
-    }
+    // /// Add a system to a pipeline stage.
+    // pub fn addSystem(self: *Registry, stage_name: []const u8, comptime System: type) !void {
+    //     try self.pipeline.addSystem(stage_name, System);
+    // }
+
+    // /// Process all systems in the pipeline.
+    // pub fn processSystems(self: *Registry) void {
+    //     self.pipeline.execute(self);
+    // }
+
+    // /// Process specific stages in the pipeline.
+    // pub fn processStages(self: *Registry, stage_names: []const []const u8) !void {
+    //     try self.pipeline.executeStages(self, stage_names);
+    // }
+
+    // /// Get stage names for debugging/introspection.
+    // pub fn getStageNames(self: *Registry) ![][]const u8 {
+    //     return try self.pipeline.getStageNames(self.allocator);
+    // }
 
     pub fn queryComponentsBuffered(
         self: *Registry,
