@@ -10,8 +10,9 @@ const TypeErasedSystem = @import("system.zig").TypeErasedSystem;
 pub const PipelineError = error{
     StageNotFound,
     SystemAlreadyRegistered,
-    CircularDependency,
+    CircularDependency, // TODO: implement circular dependency checks...
     DuplicateStage,
+    NoSubstagePipeline,
 };
 
 /// A pipeline manages the execution order of systems through named stages.
@@ -203,21 +204,29 @@ pub const Stage = struct {
     name: []const u8,
     config: StageConfig,
     systems: std.ArrayList(TypeErasedSystem),
+    substages: ?Pipeline,
 
     pub fn init(allocator: Allocator, name: []const u8, config: StageConfig) Stage {
-        return .{
+        return Stage{
             .allocator = allocator,
             .name = name,
             .config = config,
             .systems = std.ArrayList(TypeErasedSystem).init(allocator),
+            .substages = null,
         };
     }
 
     pub fn deinit(self: *Stage) void {
+        // deinit systems
         for (self.systems.items) |system| {
             system.deinit();
         }
         self.systems.deinit();
+
+        // deinit substages
+        if (self.substages) |*pipeline| {
+            pipeline.deinit();
+        }
     }
 
     pub fn addSystem(self: *Stage, comptime System: type) !void {
@@ -241,6 +250,23 @@ pub const Stage = struct {
         self.systems.clearRetainingCapacity();
     }
 
+    pub fn addSubstage(self: *Stage, name: []const u8, config: StageConfig) !void {
+        if (self.substages) |pipeline| {
+            try pipeline.addStage(name, config);
+        } else {
+            self.substages = Pipeline.init(self.allocator);
+            try self.substages.?.addStage(name, config);
+        }
+    }
+
+    pub fn removeSubstage(self: *Stage, name: []const u8) !void {
+        if (self.substages) |pipeline| {
+            try pipeline.removeStage(name);
+        } else {
+            return PipelineError.NoSubstagePipeline;
+        }
+    }
+
     pub fn setEnabled(self: *Stage, enabled: bool) void {
         self.config.enabled = enabled;
     }
@@ -262,12 +288,18 @@ pub const Stage = struct {
 
         log.debug("executing stage: {s}", .{self.name});
 
+        // first execute the immediate systems
         if (self.config.parallel) {
             // TODO: implement parallel execution when needed.
             // for now, fall back to sequential.
             self.executeSequential(registry);
         } else {
             self.executeSequential(registry);
+        }
+
+        // then execute the substages
+        if (self.substages) |*pipeline| {
+            pipeline.execute(registry);
         }
     }
 
