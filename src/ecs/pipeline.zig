@@ -346,18 +346,18 @@ pub const Stage = struct {
 
         log.debug("executing stage: {s}", .{self.name});
 
-        // first execute the immediate systems
+        // first execute the substages
+        if (self.substages) |*pipeline| {
+            pipeline.execute(registry);
+        }
+
+        // then execute the immediate systems
         if (self.config.parallel) {
             // TODO: implement parallel execution when needed.
             // for now, fall back to sequential.
             self.executeSequential(registry);
         } else {
             self.executeSequential(registry);
-        }
-
-        // then execute the substages
-        if (self.substages) |*pipeline| {
-            pipeline.execute(registry);
         }
     }
 
