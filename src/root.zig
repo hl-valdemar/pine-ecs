@@ -1,5 +1,4 @@
 // global settings //
-const std = @import("std");
 
 pub const std_options = std.Options{
     .logFn = log.logFn,
@@ -32,6 +31,7 @@ pub const Stage = pipeline.Stage;
 
 // private imports //
 
+const std = @import("std");
 const archetype = @import("ecs/archetype.zig");
 const component = @import("ecs/component.zig");
 const registry = @import("ecs/registry.zig");

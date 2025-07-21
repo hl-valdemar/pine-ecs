@@ -32,7 +32,7 @@ pub const EntityPointer = struct {
 
 pub const RegistryConfig = struct {
     /// If true, remove archetypes when they have no entities.
-    destroy_empty_archetypes: bool = false,
+    destroy_empty_archetypes: bool = true,
 };
 
 pub const Registry = struct {
@@ -160,9 +160,8 @@ pub const Registry = struct {
     /// Returns true if the entity was succesfully removed, false otherwise.
     pub fn destroyEntity(self: *Registry, entity: EntityID) Error!void {
         const entity_ptr = self.entities.get(entity) orelse return Error.NoSuchEntity;
-        var archetype = self.archetypes.getPtr(entity_ptr.archetype_hash) orelse {
+        var archetype = self.archetypes.getPtr(entity_ptr.archetype_hash) orelse
             return Error.NoSuchArchetype;
-        };
 
         // store old index before remove invalidates entity_ptr
         const original_entity_idx = entity_ptr.entity_idx;
@@ -272,11 +271,17 @@ pub const Registry = struct {
     pub fn addComponent(self: *Registry, entity: EntityID, component: anytype) !void {
         // get entity pointer or return error if entity doesn't exist
         const entity_ptr = self.entities.get(entity) orelse return Error.NoSuchEntity;
-        var prev_archetype = self.archetypes.getPtr(entity_ptr.archetype_hash) orelse return Error.NoSuchArchetype;
+
+        // store the hash before any HashMap operations that might invalidate pointers
+        const prev_archetype_hash = entity_ptr.archetype_hash;
+
+        // get the previous archetype and verify it exists
+        const prev_archetype_check = self.archetypes.getPtr(prev_archetype_hash) orelse
+            return Error.NoSuchArchetype;
 
         // calculate type name and resulting archetype hash
         const component_type_name = @typeName(@TypeOf(component));
-        const resulting_hash = prev_archetype.hash ^ std.hash_map.hashString(component_type_name);
+        const resulting_hash = prev_archetype_check.hash ^ std.hash_map.hashString(component_type_name);
 
         // get or create the target archetype
         const resulting_archetype_entry = try self.archetypes.getOrPut(resulting_hash);
@@ -287,6 +292,10 @@ pub const Registry = struct {
             _ = self.archetypes.remove(resulting_hash);
             target_archetype.deinit();
         };
+
+        // IMPORTANT: Re-fetch prev_archetype after getOrPut, as the HashMap might have resized
+        const prev_archetype = self.archetypes.getPtr(prev_archetype_hash) orelse
+            return Error.NoSuchArchetype;
 
         // setup new archetype if it doesn't exist
         if (created_new_archetype) {
@@ -301,17 +310,25 @@ pub const Registry = struct {
             std.debug.assert(target_archetype.hash == resulting_hash);
         }
 
-        // add the entity ID to the target archetype
+        // add the entity id to the target archetype
         const target_entity_idx = target_archetype.entities.items.len;
         try target_archetype.entities.append(entity);
         errdefer _ = target_archetype.entities.pop();
 
         // migrate data for existing components
-        try migrateEntityComponents(prev_archetype, target_archetype, entity_ptr.entity_idx, target_entity_idx);
+        try migrateEntityComponents(
+            prev_archetype,
+            target_archetype,
+            entity_ptr.entity_idx,
+            target_entity_idx,
+        );
 
         // add the new component
         const new_component_storage = target_archetype.components.getPtr(component_type_name).?;
-        var specific_component_storage = TypeErasedComponentStorage.cast(new_component_storage.ptr, @TypeOf(component));
+        var specific_component_storage = TypeErasedComponentStorage.cast(
+            new_component_storage.ptr,
+            @TypeOf(component),
+        );
         try specific_component_storage.set(target_entity_idx, component);
 
         // update the entity pointer
@@ -327,9 +344,9 @@ pub const Registry = struct {
         // destroy the archetype if no entities are left in it
         if (self.config.destroy_empty_archetypes and
             prev_archetype.entities.items.len == 0 and
-            prev_archetype.hash != Archetype.VOID_HASH)
+            prev_archetype_hash != Archetype.VOID_HASH)
         {
-            if (self.archetypes.fetchRemove(prev_archetype.hash)) |entry| {
+            if (self.archetypes.fetchRemove(prev_archetype_hash)) |entry| {
                 var archetype = entry.value;
                 archetype.deinit();
             } else @panic("failed to remove empty archetype!\n"); // this shouldn't happen...

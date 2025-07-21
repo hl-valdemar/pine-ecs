@@ -47,9 +47,7 @@ fn basicPipelineExample(allocator: std.mem.Allocator) !void {
     std.log.info("\n--- Basic Pipeline Example ---", .{});
 
     // create registry with default pipeline
-    var registry = try ecs.Registry.init(allocator, .{
-        .destroy_empty_archetypes = true,
-    });
+    var registry = try ecs.Registry.init(allocator, .{});
     defer registry.deinit();
 
     // add stages to the pipeline
@@ -98,9 +96,7 @@ fn advancedPipelineExample(allocator: std.mem.Allocator) !void {
     std.log.info("\n--- Advanced Pipeline Example ---", .{});
 
     // create registry without default pipeline
-    var registry = try ecs.Registry.init(allocator, .{
-        .destroy_empty_archetypes = true,
-    });
+    var registry = try ecs.Registry.init(allocator, .{});
     defer registry.deinit();
 
     // build a custom pipeline directly
@@ -159,9 +155,7 @@ fn advancedPipelineExample(allocator: std.mem.Allocator) !void {
 fn dynamicPipelineExample(allocator: std.mem.Allocator) !void {
     std.log.info("\n--- Dynamic Pipeline Example ---", .{});
 
-    var registry = try ecs.Registry.init(allocator, .{
-        .destroy_empty_archetypes = true,
-    });
+    var registry = try ecs.Registry.init(allocator, .{});
     defer registry.deinit();
 
     // start with a simple pipeline
@@ -213,7 +207,7 @@ fn dynamicPipelineExample(allocator: std.mem.Allocator) !void {
     }
 }
 
-// Example Systems
+// example systems
 
 const InitSystem = struct {
     pub fn init(allocator: std.mem.Allocator) anyerror!InitSystem {
@@ -275,7 +269,7 @@ const PhysicsSystem = struct {
     pub fn deinit(_: *PhysicsSystem) void {}
     pub fn process(_: *PhysicsSystem, _: *ecs.Registry) anyerror!void {
         std.log.info("  PhysicsSystem: simulating physics", .{});
-        // Simulate a random failure
+        // simulate a random failure
         const random = std.crypto.random.int(u8);
         if (random < 50) {
             return error.PhysicsSimulationFailed;
