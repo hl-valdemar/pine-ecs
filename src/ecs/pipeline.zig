@@ -291,7 +291,7 @@ pub const Stage = struct {
     }
 
     pub fn addSubstage(self: *Stage, name: []const u8, config: StageConfig) !void {
-        if (self.substages) |pipeline| {
+        if (self.substages) |*pipeline| {
             try pipeline.addStage(name, config);
         } else {
             self.substages = Pipeline.init(self.allocator);
