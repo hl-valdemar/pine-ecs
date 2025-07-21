@@ -299,6 +299,15 @@ pub const Stage = struct {
         }
     }
 
+    pub fn addSubstageAfter(self: *Stage, name: []const u8, after: []const u8, config: StageConfig) !void {
+        if (self.substages) |pipeline| {
+            try pipeline.addStageAfter(name, after, config);
+        } else {
+            self.substages = Pipeline.init(self.allocator);
+            try self.substages.?.addStageAfter(name, after, config);
+        }
+    }
+
     pub fn removeSubstage(self: *Stage, name: []const u8) !void {
         if (self.substages) |pipeline| {
             try pipeline.removeStage(name);
