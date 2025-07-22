@@ -37,6 +37,8 @@ pub fn main() !void {
 
     // now query and register updates
     var query = try registry.queryComponentsBuffered(.{ Position, Velocity });
+    defer query.deinit();
+
     while (query.next()) |entity| {
         const velocity = entity.get(Velocity).?;
         if (entity.getMut(Position)) |pos| {
@@ -59,6 +61,7 @@ pub fn main() !void {
 // simple helper function
 fn queryAndLog(registry: *ecs.Registry, moment: []const u8) !void {
     var entities = try registry.queryComponents(.{ Position, Velocity });
+    defer entities.deinit();
 
     std.debug.print(
         "\nEntities with position and velocity {s} buffered update: {}\n",

@@ -50,6 +50,8 @@ pub fn main() !void {
     // components can be modified as follows
     // note: for batched updates, see `examples/buffered_updates.zig`
     var result = try registry.queryComponents(.{Health});
+    defer result.deinit();
+
     while (result.next()) |entity| {
         const health = entity.get(Health).?;
         health.value -= 2;
@@ -61,6 +63,7 @@ pub fn main() !void {
 // simple helper function
 fn queryAndLog(registry: *ecs.Registry, moment: []const u8) !void {
     var entities = try registry.queryComponents(.{ Player, Name, Health });
+    defer entities.deinit();
 
     std.debug.print(
         "\nEntities with player, name, and health {s}: {}\n",

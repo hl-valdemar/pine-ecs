@@ -4,7 +4,6 @@ const Allocator = std.mem.Allocator;
 
 const log = @import("log.zig");
 const Registry = @import("registry.zig").Registry;
-const SystemManager = @import("system.zig").SystemManager;
 const TypeErasedSystem = @import("system.zig").TypeErasedSystem;
 
 pub const PipelineError = error{

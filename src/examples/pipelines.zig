@@ -241,6 +241,8 @@ const MovementSystem = struct {
         std.log.info("  MovementSystem: updating positions", .{});
 
         var entities = try registry.queryComponents(.{ Position, Velocity });
+        defer entities.deinit();
+
         while (entities.next()) |entity| {
             const pos = entity.get(Position).?;
             const vel = entity.get(Velocity).?;

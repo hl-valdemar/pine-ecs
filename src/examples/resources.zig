@@ -68,6 +68,8 @@ pub fn main() !void {
 
     // you can now query for this resource
     var potions = try registry.queryResource(Potion);
+    defer potions.deinit();
+
     while (potions.next()) |potion| {
         std.debug.print("{any}\n", .{potion});
     }
@@ -80,6 +82,8 @@ pub fn main() !void {
 
     // let's query to see if it's actually there
     var weapons = try registry.queryResource(Weapon);
+    defer weapons.deinit();
+
     while (weapons.next()) |weapon| {
         std.debug.print("{any}\n", .{weapon});
     }
