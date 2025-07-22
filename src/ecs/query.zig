@@ -69,7 +69,6 @@ pub fn ComponentQueryIterator(comptime component_types: anytype) type {
         allocator: Allocator,
         views: []EntityView(component_types),
         index: usize = 0,
-        freed: bool = false,
 
         pub fn init(
             allocator: Allocator,
@@ -79,13 +78,11 @@ pub fn ComponentQueryIterator(comptime component_types: anytype) type {
                 .allocator = allocator,
                 .views = try allocator.dupe(EntityView(component_types), entity_views),
                 .index = 0,
-                .freed = false,
             };
         }
 
         pub fn deinit(self: *Self) void {
             self.allocator.free(self.views);
-            self.freed = true;
         }
 
         pub fn next(self: *Self) ?EntityView(component_types) {
@@ -111,20 +108,17 @@ pub fn ResourceQueryIterator(comptime Resource: type) type {
         allocator: Allocator,
         resources: []Resource,
         index: usize = 0,
-        freed: bool = false,
 
         pub fn init(allocator: Allocator, resources: []Resource) !Self {
             return Self{
                 .allocator = allocator,
                 .resources = try allocator.dupe(Resource, resources),
                 .index = 0,
-                .freed = false,
             };
         }
 
         pub fn deinit(self: *Self) void {
             self.allocator.free(self.resources);
-            self.freed = true;
         }
 
         pub fn next(self: *Self) ?Resource {
@@ -218,7 +212,6 @@ pub fn BufferedComponentQueryIterator(comptime component_types: anytype) type {
         allocator: Allocator,
         views: []BufferedEntityView(component_types),
         index: usize = 0,
-        freed: bool = false,
 
         pub fn init(
             allocator: Allocator,
@@ -228,13 +221,11 @@ pub fn BufferedComponentQueryIterator(comptime component_types: anytype) type {
                 .allocator = allocator,
                 .views = try allocator.dupe(BufferedEntityView(component_types), entity_views),
                 .index = 0,
-                .freed = false,
             };
         }
 
         pub fn deinit(self: *Self) void {
             self.allocator.free(self.views);
-            self.freed = true;
         }
 
         pub fn next(self: *Self) ?*BufferedEntityView(component_types) {
