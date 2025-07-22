@@ -15,7 +15,6 @@ const res = @import("archetype.zig");
 const Archetype = res.Archetype;
 const ArchetypeHashType = res.ArchetypeHashType;
 const StageConfig = @import("pipeline.zig").StageConfig;
-const SystemManager = @import("system.zig").SystemManager;
 const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
 const TypeErasedResourceStorage = @import("resource.zig").TypeErasedResourceStorage;
 const UpdateBuffer = @import("component.zig").UpdateBuffer;
@@ -448,6 +447,11 @@ pub const Registry = struct {
         log.info("registered resource [{s}]", .{resource_name});
     }
 
+    /// Check if a resource is registered.
+    pub fn resourceRegistered(self: *Registry, comptime Resource: type) bool {
+        return self.resources.contains(@typeName(Resource));
+    }
+
     pub fn queryResource(self: *Registry, comptime Resource: type) !ResourceQueryIterator(Resource) {
         const resource_name = @typeName(Resource);
         if (self.resources.get(resource_name)) |type_erased_resource_storage| {
@@ -514,46 +518,6 @@ pub const Registry = struct {
         self.pipeline.deinit(); // deinit old pipeline
         self.pipeline = pipeline;
     }
-
-    // /// Add a stage to the pipeline.
-    // pub fn addStage(self: *Registry, stage_name: []const u8, config: StageConfig) !void {
-    //     try self.pipeline.addStage(stage_name, config);
-    // }
-
-    // /// Add a stage after another stage in the pipeline.
-    // pub fn addStageAfter(self: *Registry, name: []const u8, after: []const u8, config: StageConfig) !void {
-    //     try self.pipeline.addStageAfter(name, after, config);
-    // }
-
-    // /// Add a stage before another stage in the pipeline.
-    // pub fn addStageBefore(self: *Registry, name: []const u8, before: []const u8, config: StageConfig) !void {
-    //     try self.pipeline.addStageBefore(name, before, config);
-    // }
-
-    // /// Remove a stage from the pipeline.
-    // pub fn removeStage(self: *Registry, name: []const u8) !void {
-    //     try self.pipeline.removeStage(name);
-    // }
-
-    // /// Add a system to a pipeline stage.
-    // pub fn addSystem(self: *Registry, stage_name: []const u8, comptime System: type) !void {
-    //     try self.pipeline.addSystem(stage_name, System);
-    // }
-
-    // /// Process all systems in the pipeline.
-    // pub fn processSystems(self: *Registry) void {
-    //     self.pipeline.execute(self);
-    // }
-
-    // /// Process specific stages in the pipeline.
-    // pub fn processStages(self: *Registry, stage_names: []const []const u8) !void {
-    //     try self.pipeline.executeStages(self, stage_names);
-    // }
-
-    // /// Get stage names for debugging/introspection.
-    // pub fn getStageNames(self: *Registry) ![][]const u8 {
-    //     return try self.pipeline.getStageNames(self.allocator);
-    // }
 
     pub fn queryComponentsBuffered(
         self: *Registry,
