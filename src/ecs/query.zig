@@ -84,19 +84,20 @@ pub fn ComponentQueryIterator(comptime component_types: anytype) type {
         }
 
         pub fn deinit(self: *Self) void {
-            self.allocator.free(self.views);
-            self.freed = true;
+            if (!self.freed) {
+                self.allocator.free(self.views);
+                self.freed = true;
+            }
         }
 
         pub fn next(self: *Self) ?EntityView(component_types) {
             defer self.index += 1; // increment when done
 
-            if (self.index < self.views.len) {
+            if (self.index < self.views.len)
                 return self.views[self.index];
-            }
 
             // free the views array when iteration is complete
-            if (self.index == self.views.len and !self.freed)
+            if (self.index == self.views.len)
                 self.deinit();
 
             return null;
@@ -128,19 +129,20 @@ pub fn ResourceQueryIterator(comptime Resource: type) type {
         }
 
         pub fn deinit(self: *Self) void {
-            self.allocator.free(self.resources);
-            self.freed = true;
+            if (!self.freed) {
+                self.allocator.free(self.resources);
+                self.freed = true;
+            }
         }
 
         pub fn next(self: *Self) ?Resource {
             defer self.index += 1; // increment when done
 
-            if (self.index < self.resources.len) {
+            if (self.index < self.resources.len)
                 return self.resources[self.index];
-            }
 
             // free the resources array when iteration is complete
-            if (self.index == self.resources.len and !self.freed)
+            if (self.index == self.resources.len)
                 self.deinit();
 
             return null;
