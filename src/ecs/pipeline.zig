@@ -189,6 +189,7 @@ pub const Pipeline = struct {
     }
 
     /// Get all stage names in execution order.
+    ///
     /// Note: caller owns returned object.
     pub fn getStageNames(self: *Pipeline, allocator: Allocator) ![][]const u8 {
         var names = try allocator.alloc([]const u8, self.stages.items.len);
@@ -217,6 +218,8 @@ pub const Pipeline = struct {
         }
     }
 
+    /// Must be called whenever `stages` is modified.
+    /// Otherwise, stage map has invalid state.
     fn rebuildStageMap(self: *Pipeline) !void {
         self.stage_map.clearRetainingCapacity();
         for (self.stages.items, 0..) |stage, index| {
