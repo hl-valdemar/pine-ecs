@@ -666,7 +666,7 @@ pub const Registry = struct {
     }
 
     /// Check if multiple stages exist.
-    pub fn hasStages(self: *Registry, stage_names: []const []const u8, operation: enum { @"and", @"or" }) bool {
+    pub fn hasStages(self: *Registry, stage_names: []const []const u8, operation: Pipeline.HasStagesOp) bool {
         return self.pipeline.hasStages(stage_names, operation);
     }
 

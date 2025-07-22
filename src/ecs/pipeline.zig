@@ -167,8 +167,13 @@ pub const Pipeline = struct {
         return self.stage_map.contains(name);
     }
 
+    pub const HasStagesOp = enum {
+        @"and",
+        @"or",
+    };
+
     /// Check if a bunch of stages exists.
-    pub fn hasStages(self: *Pipeline, stage_names: []const []const u8, operation: enum { @"and", @"or" }) bool {
+    pub fn hasStages(self: *Pipeline, stage_names: []const []const u8, operation: HasStagesOp) bool {
         switch (operation) {
             .@"and" => {
                 var result = true;
