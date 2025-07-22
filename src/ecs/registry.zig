@@ -14,6 +14,7 @@ const BufferedComponentQueryIterator = query.BufferedComponentQueryIterator;
 const res = @import("archetype.zig");
 const Archetype = res.Archetype;
 const ArchetypeHashType = res.ArchetypeHashType;
+const Stage = @import("pipeline.zig").Stage;
 const StageConfig = @import("pipeline.zig").StageConfig;
 const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
 const TypeErasedResourceStorage = @import("resource.zig").TypeErasedResourceStorage;
@@ -607,5 +608,70 @@ pub const Registry = struct {
     /// Check if there are pending updates.
     pub fn hasPendingUpdates(self: *Registry) bool {
         return self.update_buffer.updates.items.len > 0;
+    }
+
+    /// Add a new stage to the pipeline.
+    pub fn addStage(self: *Registry, name: []const u8, config: StageConfig) !void {
+        try self.pipeline.addStage(name, config);
+    }
+
+    /// Add a stage that runs after another stage.
+    pub fn addStageAfter(self: *Registry, name: []const u8, after: []const u8, config: StageConfig) !void {
+        try self.pipeline.addStageAfter(name, after, config);
+    }
+
+    /// Add a stage that runs before another stage.
+    pub fn addStageBefore(self: *Registry, name: []const u8, before: []const u8, config: StageConfig) !void {
+        try self.pipeline.addStageBefore(name, before, config);
+    }
+
+    /// Remove a stage from the pipeline.
+    pub fn removeStage(self: *Registry, name: []const u8) !void {
+        try self.pipeline.removeStage(name);
+    }
+
+    /// Add a system to a specific stage.
+    pub fn addSystem(self: *Registry, stage_name: []const u8, comptime System: type) !void {
+        try self.pipeline.addSystem(stage_name, System);
+    }
+
+    /// Add multiple systems to a stage at once.
+    pub fn addSystems(self: *Registry, stage_name: []const u8, comptime systems: anytype) !void {
+        try self.pipeline.addSystems(stage_name, systems);
+    }
+
+    /// Execute the entire pipeline.
+    pub fn executePipeline(self: *Registry) void {
+        self.pipeline.execute(self);
+    }
+
+    /// Execute only specific stages.
+    pub fn executeStages(self: *Registry, stage_names: []const []const u8) !void {
+        try self.pipeline.executeStages(self, stage_names);
+    }
+
+    /// Execute stages matching a predicate.
+    pub fn executeStagesIf(self: *Registry, predicate: *const fn (stage_name: []const u8) bool) void {
+        self.pipeline.executeStagesIf(self, predicate);
+    }
+
+    /// Get a stage by name for direct manipulation.
+    pub fn getStage(self: *Registry, name: []const u8) ?*Stage {
+        return self.pipeline.getStage(name);
+    }
+
+    /// Check if a stage exists.
+    pub fn hasStage(self: *Registry, name: []const u8) bool {
+        return self.pipeline.hasStage(name);
+    }
+
+    /// Check if multiple stages exist.
+    pub fn hasStages(self: *Registry, stage_names: []const []const u8, operation: enum { @"and", @"or" }) bool {
+        return self.pipeline.hasStages(stage_names, operation);
+    }
+
+    /// Get all stage names in execution order.
+    pub fn getStageNames(self: *Registry, allocator: Allocator) ![][]const u8 {
+        return try self.pipeline.getStageNames(allocator);
     }
 };
