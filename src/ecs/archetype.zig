@@ -4,10 +4,10 @@ const Allocator = std.mem.Allocator;
 const EntityID = @import("registry.zig").EntityID;
 const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
 
-pub const ArchetypeHashType = u64;
+pub const ArchetypeHash = u64;
 
 pub const Archetype = struct {
-    pub const VOID_HASH: ArchetypeHashType = 0;
+    pub const VOID_HASH: ArchetypeHash = 0;
 
     const RemoveResult = struct {
         removed_id: EntityID,

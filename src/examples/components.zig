@@ -9,6 +9,7 @@ pub const std_options = std.Options{
 
 // declare some components
 const Player = struct {}; // just a player tag
+const Enemy = struct {}; // just an enemy tag
 const Name = struct { value: []const u8 };
 const Health = struct { value: u8 };
 
@@ -26,10 +27,10 @@ pub fn main() !void {
 
     // you can either:
     // 1. manually spawn entity and add components
-    const player = try registry.createEntity();
-    try registry.addComponent(player, Player{});
-    try registry.addComponent(player, Name{ .value = "Jane" });
-    try registry.addComponent(player, Health{ .value = 10 });
+    const player1 = try registry.createEntity();
+    try registry.addComponent(player1, Player{});
+    try registry.addComponent(player1, Name{ .value = "Jane" });
+    try registry.addComponent(player1, Health{ .value = 10 });
 
     // 2. use the spawn command to easily create an entity and add components
     _ = try registry.spawn(.{
@@ -38,12 +39,24 @@ pub fn main() !void {
         Health{ .value = 3 },
     });
 
+    // why not spawn a little enemy
+    const enemy = try registry.spawn(.{
+        Enemy{},
+        Health{ .value = 1 },
+    });
+
+    // check if the player has the player component
+    std.debug.print("\nPlayer entity has player component: {}\n", .{registry.hasComponent(player1, Player)});
+
+    // now check if the enemy has the player component
+    std.debug.print("Enemy entity has player component: {}\n", .{registry.hasComponent(enemy, Player)});
+
     try queryAndLog(&registry, "BEFORE manual destruction of entity");
 
     // you can manually destroy an entity
     // note: entities not destroyed on registry.deinit() will
     // be automatically cleaned up in the process
-    registry.destroyEntity(player) catch std.log.err("failed to destroy entity!", .{});
+    registry.destroyEntity(player1) catch std.log.err("failed to destroy entity!", .{});
 
     try queryAndLog(&registry, "AFTER manual destruction of entity");
 
@@ -52,9 +65,12 @@ pub fn main() !void {
     var result = try registry.queryComponents(.{Health});
     defer result.deinit();
 
+    const damage = 2;
     while (result.next()) |entity| {
         const health = entity.get(Health).?;
-        health.value -= 2;
+        if (health.value < damage) {
+            health.value = 0;
+        } else health.value -= damage;
     }
 
     try queryAndLog(&registry, "AFTER health modification");
@@ -72,7 +88,7 @@ fn queryAndLog(registry: *ecs.Registry, moment: []const u8) !void {
 
     while (entities.next()) |entity| {
         std.debug.print("\n", .{});
-        std.debug.print("  Entity ID: {d}\n", .{entity.entity_id});
+        std.debug.print("  Entity id: {d}\n", .{entity.entity_id});
         std.debug.print("  ∟ Player component: {any}\n", .{entity.get(Player).?});
         std.debug.print("  ∟ Name component: {any} ({s})\n", .{ entity.get(Name).?, entity.get(Name).?.value });
         std.debug.print("  ∟ Health component: {any}\n", .{entity.get(Health).?});

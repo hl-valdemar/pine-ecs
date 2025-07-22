@@ -13,7 +13,7 @@ const BufferedEntityView = query.BufferedEntityView;
 const BufferedComponentQueryIterator = query.BufferedComponentQueryIterator;
 const res = @import("archetype.zig");
 const Archetype = res.Archetype;
-const ArchetypeHashType = res.ArchetypeHashType;
+const ArchetypeHash = res.ArchetypeHash;
 const Stage = @import("pipeline.zig").Stage;
 const StageConfig = @import("pipeline.zig").StageConfig;
 const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
@@ -24,7 +24,7 @@ pub const EntityID = u32;
 
 pub const EntityPointer = struct {
     /// An ID for the archetype in which the entity data resides.
-    archetype_hash: ArchetypeHashType,
+    archetype_hash: ArchetypeHash,
 
     /// An index into the archetype table to the entity data.
     entity_idx: usize,
@@ -35,6 +35,13 @@ pub const RegistryConfig = struct {
     destroy_empty_archetypes: bool = true,
 };
 
+const RegistryError = error{
+    NoSuchEntity,
+    NoSuchArchetype,
+    InternalInconsistency,
+    UnregisteredResource,
+};
+
 pub const Registry = struct {
     allocator: Allocator,
 
@@ -42,7 +49,7 @@ pub const Registry = struct {
     entities: std.AutoHashMap(EntityID, EntityPointer),
 
     /// Maps an archetype hash to its corresponding archetype.
-    archetypes: std.AutoHashMap(ArchetypeHashType, Archetype),
+    archetypes: std.AutoHashMap(ArchetypeHash, Archetype),
 
     /// Data not related to any particular entities.
     resources: std.StringHashMap(TypeErasedResourceStorage),
@@ -55,18 +62,11 @@ pub const Registry = struct {
     update_buffer: UpdateBuffer,
     config: RegistryConfig,
 
-    const Error = error{
-        NoSuchEntity,
-        NoSuchArchetype,
-        InternalInconsistency,
-        UnregisteredResource,
-    };
-
     pub fn init(allocator: Allocator, config: RegistryConfig) !Registry {
         var registry = Registry{
             .allocator = allocator,
             .entities = std.AutoHashMap(EntityID, EntityPointer).init(allocator),
-            .archetypes = std.AutoHashMap(ArchetypeHashType, Archetype).init(allocator),
+            .archetypes = std.AutoHashMap(ArchetypeHash, Archetype).init(allocator),
             .resources = std.StringHashMap(TypeErasedResourceStorage).init(allocator),
             .plugins = std.ArrayList(Plugin).init(allocator),
             .pipeline = Pipeline.init(allocator),
@@ -127,7 +127,7 @@ pub const Registry = struct {
     /// ```
     pub fn spawn(self: *Registry, components: anytype) !EntityID {
         const entity = try self.createEntity();
-        errdefer _ = self.destroyEntity(entity) catch unreachable; // if we reach this line, the entity must have been created
+        errdefer _ = self.destroyEntity(entity) catch unreachable; // here, the entity must have been created!
 
         // add components with reflection
         inline for (std.meta.fields(@TypeOf(components))) |field| {
@@ -158,10 +158,10 @@ pub const Registry = struct {
     }
 
     /// Returns true if the entity was succesfully removed, false otherwise.
-    pub fn destroyEntity(self: *Registry, entity: EntityID) Error!void {
-        const entity_ptr = self.entities.get(entity) orelse return Error.NoSuchEntity;
+    pub fn destroyEntity(self: *Registry, entity: EntityID) RegistryError!void {
+        const entity_ptr = self.entities.get(entity) orelse return RegistryError.NoSuchEntity;
         var archetype = self.archetypes.getPtr(entity_ptr.archetype_hash) orelse
-            return Error.NoSuchArchetype;
+            return RegistryError.NoSuchArchetype;
 
         // store old index before remove invalidates entity_ptr
         const original_entity_idx = entity_ptr.entity_idx;
@@ -175,7 +175,7 @@ pub const Registry = struct {
                 "removed entity ID {d} does not correspond with requested entity ID {d}",
                 .{ removed_result.removed_id, entity },
             );
-            return Error.InternalInconsistency;
+            return RegistryError.InternalInconsistency;
         }
 
         // handle the swapped entity
@@ -189,7 +189,7 @@ pub const Registry = struct {
                     "swapped entity ID {d} not found in registry during destroyEntity!",
                     .{swapped_entity_id},
                 );
-                return Error.InternalInconsistency;
+                return RegistryError.InternalInconsistency;
             }
         }
 
@@ -197,8 +197,8 @@ pub const Registry = struct {
         _ = self.entities.remove(entity); // at this point always true
     }
 
-    /// Create a new archetype with a new component type.
-    fn createArchetypeWithComponent(
+    /// Create a new archetype by extending an existing archetype.
+    fn createExtendedArchetype(
         allocator: Allocator,
         prev_archetype: *Archetype,
         component_type_name: []const u8,
@@ -257,27 +257,27 @@ pub const Registry = struct {
         self: *Registry,
         swapped_entity_id: ?EntityID,
         original_entity_idx: usize,
-    ) Error!void {
+    ) RegistryError!void {
         if (swapped_entity_id) |entity_id| {
             if (self.entities.getPtr(entity_id)) |swapped_entity_ptr_ptr| {
                 swapped_entity_ptr_ptr.*.entity_idx = original_entity_idx;
             } else {
                 log.err("swapped entity ID {d} not found in registry!", .{entity_id});
-                return Error.InternalInconsistency;
+                return RegistryError.InternalInconsistency;
             }
         }
     }
 
     pub fn addComponent(self: *Registry, entity: EntityID, component: anytype) !void {
         // get entity pointer or return error if entity doesn't exist
-        const entity_ptr = self.entities.get(entity) orelse return Error.NoSuchEntity;
+        const entity_ptr = self.entities.get(entity) orelse return RegistryError.NoSuchEntity;
 
         // store the hash before any HashMap operations that might invalidate pointers
         const prev_archetype_hash = entity_ptr.archetype_hash;
 
         // get the previous archetype and verify it exists
         const prev_archetype_check = self.archetypes.getPtr(prev_archetype_hash) orelse
-            return Error.NoSuchArchetype;
+            return RegistryError.NoSuchArchetype;
 
         // calculate type name and resulting archetype hash
         const component_type_name = @typeName(@TypeOf(component));
@@ -295,11 +295,11 @@ pub const Registry = struct {
 
         // IMPORTANT: Re-fetch prev_archetype after getOrPut, as the HashMap might have resized
         const prev_archetype = self.archetypes.getPtr(prev_archetype_hash) orelse
-            return Error.NoSuchArchetype;
+            return RegistryError.NoSuchArchetype;
 
         // setup new archetype if it doesn't exist
         if (created_new_archetype) {
-            target_archetype.* = try createArchetypeWithComponent(
+            target_archetype.* = try createExtendedArchetype(
                 self.allocator,
                 prev_archetype,
                 component_type_name,
@@ -353,6 +353,22 @@ pub const Registry = struct {
         }
 
         try handleSwappedEntity(self, remove_result.swapped_id, entity_ptr.entity_idx);
+    }
+
+    /// Check if an entity has a certain component.
+    pub fn hasComponent(self: *Registry, entity: EntityID, comptime Component: type) bool {
+        // get component names from archetype
+        const entity_ptr = self.entities.get(entity) orelse return false;
+        const archetype = self.archetypes.get(entity_ptr.archetype_hash) orelse return false;
+        const component_names = archetype.components.keys();
+
+        // check for a match
+        for (component_names) |name| {
+            if (std.mem.eql(u8, name, @typeName(Component)))
+                return true;
+        }
+
+        return false;
     }
 
     /// Query for entities that have all specified component types.
@@ -460,7 +476,7 @@ pub const Registry = struct {
             return try ResourceQueryIterator(Resource).init(self.allocator, resource_storage.resources.items);
         }
         // log.err("tried to query unregistered resource [{s}]!", .{ resource_name });
-        return Error.UnregisteredResource;
+        return RegistryError.UnregisteredResource;
     }
 
     /// Returns the first resource of the sort.
@@ -485,27 +501,27 @@ pub const Registry = struct {
             try resource_storage.resources.append(resource);
         } else {
             // log.err("tried to push unregistered resource [{s}]!", .{ resource_name });
-            return Error.UnregisteredResource;
+            return RegistryError.UnregisteredResource;
         }
     }
 
-    pub fn clearResource(self: *Registry, comptime Resource: type) Error!void {
+    pub fn clearResource(self: *Registry, comptime Resource: type) RegistryError!void {
         const resource_name = @typeName(Resource);
         if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
             type_erased_resource_storage.clear();
         } else {
             // log.err("tried to clear unregistered resource [{s}]!", .{ resource_name });
-            return Error.UnregisteredResource;
+            return RegistryError.UnregisteredResource;
         }
     }
 
-    pub fn removeResource(self: *Registry, comptime Resource: type, idx: usize) Error!void {
+    pub fn removeResource(self: *Registry, comptime Resource: type, idx: usize) RegistryError!void {
         const resource_name = @typeName(Resource);
         if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
             type_erased_resource_storage.remove(idx);
         } else {
             // log.err("tried to remove unregistered resource [{s}]!", .{ resource_name });
-            return Error.UnregisteredResource;
+            return RegistryError.UnregisteredResource;
         }
     }
 
