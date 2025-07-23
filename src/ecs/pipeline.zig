@@ -167,13 +167,13 @@ pub const Pipeline = struct {
         return self.stage_map.contains(name);
     }
 
-    pub const HasStagesOp = enum {
+    pub const BooleanOperation = enum {
         @"and",
         @"or",
     };
 
     /// Check if a bunch of stages exists.
-    pub fn hasStages(self: *Pipeline, stage_names: []const []const u8, operation: HasStagesOp) bool {
+    pub fn hasStages(self: *Pipeline, stage_names: []const []const u8, operation: BooleanOperation) bool {
         switch (operation) {
             .@"and" => {
                 var result = true;
@@ -210,6 +210,34 @@ pub const Pipeline = struct {
         if (self.getStage(stage_name)) |stage| {
             return try stage.getSystemNames(allocator);
         } else return PipelineError.StageNotFound;
+    }
+
+    /// Check whether a stage is void of systems.
+    ///
+    /// Note: returns `true` also in the case that an unregistered stage is checked.
+    pub fn stageEmpty(self: *Pipeline, stage_name: []const u8) bool {
+        if (self.getStage(stage_name)) |stage| {
+            return stage.systems.items.len == 0;
+        } else return true;
+    }
+
+    pub fn stagesEmpty(self: *Pipeline, stage_names: []const []const u8, operation: BooleanOperation) bool {
+        switch (operation) {
+            .@"and" => {
+                var result = true;
+                for (stage_names) |name| {
+                    result = result and self.stageEmpty(name);
+                }
+                return result;
+            },
+            .@"or" => {
+                var result = false;
+                for (stage_names) |name| {
+                    result = result or self.stageEmpty(name);
+                }
+                return result;
+            },
+        }
     }
 
     /// Print pipeline structure for debugging.

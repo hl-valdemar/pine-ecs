@@ -628,17 +628,31 @@ pub const Registry = struct {
     }
 
     /// Add a new stage to the pipeline.
-    pub fn addStage(self: *Registry, name: []const u8, config: StageConfig) !void {
+    pub fn addStage(
+        self: *Registry,
+        name: []const u8,
+        config: StageConfig,
+    ) !void {
         try self.pipeline.addStage(name, config);
     }
 
     /// Add a stage that runs after another stage.
-    pub fn addStageAfter(self: *Registry, name: []const u8, after: []const u8, config: StageConfig) !void {
+    pub fn addStageAfter(
+        self: *Registry,
+        name: []const u8,
+        after: []const u8,
+        config: StageConfig,
+    ) !void {
         try self.pipeline.addStageAfter(name, after, config);
     }
 
     /// Add a stage that runs before another stage.
-    pub fn addStageBefore(self: *Registry, name: []const u8, before: []const u8, config: StageConfig) !void {
+    pub fn addStageBefore(
+        self: *Registry,
+        name: []const u8,
+        before: []const u8,
+        config: StageConfig,
+    ) !void {
         try self.pipeline.addStageBefore(name, before, config);
     }
 
@@ -648,12 +662,20 @@ pub const Registry = struct {
     }
 
     /// Add a system to a specific stage.
-    pub fn addSystem(self: *Registry, stage_name: []const u8, comptime System: type) !void {
+    pub fn addSystem(
+        self: *Registry,
+        stage_name: []const u8,
+        comptime System: type,
+    ) !void {
         try self.pipeline.addSystem(stage_name, System);
     }
 
     /// Add multiple systems to a stage at once.
-    pub fn addSystems(self: *Registry, stage_name: []const u8, comptime systems: anytype) !void {
+    pub fn addSystems(
+        self: *Registry,
+        stage_name: []const u8,
+        comptime systems: anytype,
+    ) !void {
         try self.pipeline.addSystems(stage_name, systems);
     }
 
@@ -668,7 +690,10 @@ pub const Registry = struct {
     }
 
     /// Execute stages matching a predicate.
-    pub fn executeStagesIf(self: *Registry, predicate: *const fn (stage_name: []const u8) bool) void {
+    pub fn executeStagesIf(
+        self: *Registry,
+        predicate: *const fn (stage_name: []const u8) bool,
+    ) void {
         self.pipeline.executeStagesIf(self, predicate);
     }
 
@@ -683,7 +708,11 @@ pub const Registry = struct {
     }
 
     /// Check if multiple stages exist.
-    pub fn hasStages(self: *Registry, stage_names: []const []const u8, operation: Pipeline.HasStagesOp) bool {
+    pub fn hasStages(
+        self: *Registry,
+        stage_names: []const []const u8,
+        operation: Pipeline.BooleanOperation,
+    ) bool {
         return self.pipeline.hasStages(stage_names, operation);
     }
 
@@ -692,7 +721,23 @@ pub const Registry = struct {
         return try self.pipeline.getStageNames(allocator);
     }
 
-    pub fn getSystemNames(self: *Registry, allocator: Allocator, stage_name: []const u8) ![][]const u8 {
+    pub fn getSystemNames(
+        self: *Registry,
+        allocator: Allocator,
+        stage_name: []const u8,
+    ) ![][]const u8 {
         return try self.pipeline.getSystemNames(allocator, stage_name);
+    }
+
+    pub fn stageEmpty(self: *Registry, stage_name: []const u8) bool {
+        return self.pipeline.stageEmpty(stage_name);
+    }
+
+    pub fn stagesEmpty(
+        self: *Registry,
+        stage_names: []const []const u8,
+        operation: Pipeline.BooleanOperation,
+    ) bool {
+        return self.pipeline.stagesEmpty(stage_names, operation);
     }
 };
