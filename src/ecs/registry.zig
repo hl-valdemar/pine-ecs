@@ -691,4 +691,8 @@ pub const Registry = struct {
     pub fn getStageNames(self: *Registry, allocator: Allocator) ![][]const u8 {
         return try self.pipeline.getStageNames(allocator);
     }
+
+    pub fn getSystemNames(self: *Registry, allocator: Allocator, stage_name: []const u8) ![][]const u8 {
+        return try self.pipeline.getSystemNames(allocator, stage_name);
+    }
 };

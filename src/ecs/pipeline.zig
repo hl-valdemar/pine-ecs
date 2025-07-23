@@ -206,6 +206,12 @@ pub const Pipeline = struct {
         return names;
     }
 
+    pub fn getSystemNames(self: *Pipeline, allocator: Allocator, stage_name: []const u8) ![][]const u8 {
+        if (self.pipeline.getStage(stage_name)) |stage| {
+            return try stage.getSystemNames(allocator);
+        } else return PipelineError.StageNotFound;
+    }
+
     /// Print pipeline structure for debugging.
     pub fn debugPrint(self: *Pipeline) void {
         log.debug("pipeline structure:", .{});
@@ -288,6 +294,17 @@ pub const Stage = struct {
 
         var system = self.systems.orderedRemove(index);
         system.deinit();
+    }
+
+    pub fn getSystemNames(self: *Stage, allocator: Allocator) ![][]const u8 {
+        var names = try allocator.alloc([]const u8, self.systems.items.len);
+        errdefer allocator.free(names);
+
+        for (self.systems.items, 0..) |system, i| {
+            names[i] = system.metadata.name;
+        }
+
+        return names;
     }
 
     pub fn clearSystems(self: *Stage) void {

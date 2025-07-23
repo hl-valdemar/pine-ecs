@@ -84,6 +84,7 @@ pub const TypeErasedSystem = struct {
     allocator: Allocator,
     ptr: *anyopaque,
     vtable: *const SystemVTable,
+    metadata: SystemMetadata,
 
     pub fn init(allocator: Allocator, comptime System: type) !TypeErasedSystem {
         const metadata = SystemTrait(System).validate();
@@ -100,6 +101,7 @@ pub const TypeErasedSystem = struct {
             .allocator = allocator,
             .ptr = system_ptr,
             .vtable = &comptime makeSystemVTable(System, metadata),
+            .metadata = metadata,
         };
     }
 
