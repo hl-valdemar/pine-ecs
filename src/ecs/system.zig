@@ -4,44 +4,12 @@ const Allocator = std.mem.Allocator;
 const log = @import("log.zig");
 const Registry = @import("registry.zig").Registry;
 
-pub fn SystemTrait(comptime SystemType: type) type {
-    const InitFunc = fn (Allocator) anyerror!SystemType;
-    const DeinitFunc = fn (*SystemType) void;
-    const ProcessFunc = fn (*SystemType, *Registry) anyerror!void;
-
+/// Defines critical system functions.
+fn SystemTrait(comptime System: type) type {
     return struct {
-        pub fn validate() void {
-            // check if required functions exist with correct signatures
-            if (!@hasDecl(SystemType, "init") or
-                @TypeOf(SystemType.init) != InitFunc)
-            {
-                @compileLog("INVALID SYSTEM REGISTERED", SystemType);
-                @compileError(
-                    \\System type must have `pub fn init(Allocator) anyerror!Self`.
-                    \\Did you make the function public?"
-                );
-            }
-
-            if (!@hasDecl(SystemType, "deinit") or
-                @TypeOf(SystemType.deinit) != DeinitFunc)
-            {
-                @compileLog("INVALID SYSTEM REGISTERED", SystemType);
-                @compileError(
-                    \\System type must have `pub fn deinit(*Self) void`.
-                    \\Did you make the function public?
-                );
-            }
-
-            if (!@hasDecl(SystemType, "process") or
-                @TypeOf(SystemType.process) != ProcessFunc)
-            {
-                @compileLog("INVALID SYSTEM REGISTERED", SystemType);
-                @compileError(
-                    \\System type must have `pub fn process(*Self, *Registry) anyerror!void`.
-                    \\Did you make the function public?
-                );
-            }
-        }
+        pub const InitFn = fn (Allocator) anyerror!System;
+        pub const DeinitFn = fn (*System) void;
+        pub const ProcessFn = fn (*System, *Registry) anyerror!void;
     };
 }
 
@@ -50,16 +18,27 @@ pub const TypeErasedSystem = struct {
     ptr: *anyopaque,
     vtable: *const SystemVTable,
 
-    pub fn init(allocator: Allocator, comptime SystemType: type) !TypeErasedSystem {
-        comptime SystemTrait(SystemType).validate();
+    pub fn init(allocator: Allocator, comptime System: type) !TypeErasedSystem {
+        const system_ptr = try allocator.create(System);
 
-        const system_ptr = try allocator.create(SystemType);
-        system_ptr.* = try SystemType.init(allocator);
+        // if system defines an init, use it
+        system_ptr.* = if (@hasDecl(System, "init")) blk: {
+            const system_init_type = @TypeOf(System.init);
+            if (system_init_type != SystemTrait(System).InitFn) {
+                @compileError(std.fmt.comptimePrint(
+                    \\System type '{s}' has invalid init signature.
+                    \\Expected: fn(Allocator) anyerror!{s}
+                    \\Found:    {s}
+                    \\Did you make the function public?
+                , .{ @typeName(System), @typeName(System), @typeName(system_init_type) }));
+            }
+            break :blk try System.init(allocator);
+        } else System{};
 
         return TypeErasedSystem{
             .allocator = allocator,
             .ptr = system_ptr,
-            .vtable = &comptime makeSystemVTable(SystemType),
+            .vtable = &comptime makeSystemVTable(System),
         };
     }
 
@@ -71,7 +50,7 @@ pub const TypeErasedSystem = struct {
         try self.vtable.process(self.ptr, registry);
     }
 
-    pub fn cast(type_erased_system_ptr: *anyopaque, comptime SystemType: type) *SystemType {
+    pub fn cast(type_erased_system_ptr: *anyopaque, comptime System: type) *System {
         return @alignCast(@ptrCast(type_erased_system_ptr));
     }
 };
@@ -82,19 +61,53 @@ pub const SystemVTable = struct {
     process: *const fn (*anyopaque, *Registry) anyerror!void,
 };
 
-pub fn makeSystemVTable(comptime SystemType: type) SystemVTable {
+pub fn makeSystemVTable(comptime System: type) SystemVTable {
     return SystemVTable{
         .deinit = (struct {
             fn func(allocator: Allocator, type_erased_system_ptr: *anyopaque) void {
-                const system = TypeErasedSystem.cast(type_erased_system_ptr, SystemType);
-                system.deinit();
+                const system = TypeErasedSystem.cast(type_erased_system_ptr, System);
+
+                // if system defines a deinit, use it
+                if (@hasDecl(System, "deinit")) {
+                    // assert that the deinit function follows convention
+                    const system_deinit_type = @TypeOf(System.deinit);
+                    if (system_deinit_type != SystemTrait(System).DeinitFn) {
+                        @compileError(std.fmt.comptimePrint(
+                            \\System type '{s}' has invalid deinit signature.
+                            \\Expected: fn(*{s}) void
+                            \\Found:    {s}
+                        , .{ @typeName(System), @typeName(System), @typeName(system_deinit_type) }));
+                    }
+
+                    system.deinit();
+                }
+
                 allocator.destroy(system);
             }
         }).func,
         .process = (struct {
             fn func(type_erased_system_ptr: *anyopaque, registry: *Registry) anyerror!void {
-                const system = TypeErasedSystem.cast(type_erased_system_ptr, SystemType);
-                try system.process(registry);
+                const system = TypeErasedSystem.cast(type_erased_system_ptr, System);
+
+                // a system must define a process method, lest it be redundant
+                if (@hasDecl(System, "process")) {
+                    // assert that the process function follows convention
+                    const system_process_type = @TypeOf(System.process);
+                    if (system_process_type != SystemTrait(System).ProcessFn) {
+                        @compileError(std.fmt.comptimePrint(
+                            \\System type '{s}' has invalid process signature.
+                            \\Expected: fn (*{s}, *Registry) anyerror!void
+                            \\Found:    {s}
+                            \\Did you make the function public?
+                        , .{ @typeName(System), @typeName(System), @typeName(system_process_type) }));
+                    }
+                    try system.process(registry);
+                } else @compileError(std.fmt.comptimePrint(
+                    \\System type '{s}' has invalid process signature.
+                    \\Expected: fn (*{s}, *Registry) anyerror!void
+                    \\Found:    NONE
+                    \\Did you make the function public?
+                , .{ @typeName(System), @typeName(System) }));
             }
         }).func,
     };

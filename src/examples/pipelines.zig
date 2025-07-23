@@ -210,33 +210,18 @@ fn dynamicPipelineExample(allocator: std.mem.Allocator) !void {
 // example systems
 
 const InitSystem = struct {
-    pub fn init(allocator: std.mem.Allocator) anyerror!InitSystem {
-        _ = allocator;
-        return InitSystem{};
-    }
-    pub fn deinit(_: *InitSystem) void {}
     pub fn process(_: *InitSystem, _: *ecs.Registry) anyerror!void {
         std.log.info("  InitSystem: initializing game", .{});
     }
 };
 
 const InputSystem = struct {
-    pub fn init(allocator: std.mem.Allocator) anyerror!InputSystem {
-        _ = allocator;
-        return InputSystem{};
-    }
-    pub fn deinit(_: *InputSystem) void {}
     pub fn process(_: *InputSystem, _: *ecs.Registry) anyerror!void {
         std.log.info("  InputSystem: processing input", .{});
     }
 };
 
 const MovementSystem = struct {
-    pub fn init(allocator: std.mem.Allocator) anyerror!MovementSystem {
-        _ = allocator;
-        return MovementSystem{};
-    }
-    pub fn deinit(_: *MovementSystem) void {}
     pub fn process(_: *MovementSystem, registry: *ecs.Registry) anyerror!void {
         std.log.info("  MovementSystem: updating positions", .{});
 
@@ -253,22 +238,12 @@ const MovementSystem = struct {
 };
 
 const CollisionSystem = struct {
-    pub fn init(allocator: std.mem.Allocator) anyerror!CollisionSystem {
-        _ = allocator;
-        return CollisionSystem{};
-    }
-    pub fn deinit(_: *CollisionSystem) void {}
     pub fn process(_: *CollisionSystem, _: *ecs.Registry) anyerror!void {
         std.log.info("  CollisionSystem: checking collisions", .{});
     }
 };
 
 const PhysicsSystem = struct {
-    pub fn init(allocator: std.mem.Allocator) anyerror!PhysicsSystem {
-        _ = allocator;
-        return PhysicsSystem{};
-    }
-    pub fn deinit(_: *PhysicsSystem) void {}
     pub fn process(_: *PhysicsSystem, _: *ecs.Registry) anyerror!void {
         std.log.info("  PhysicsSystem: simulating physics", .{});
         // simulate a random failure
