@@ -207,7 +207,7 @@ pub const Pipeline = struct {
     }
 
     pub fn getSystemNames(self: *Pipeline, allocator: Allocator, stage_name: []const u8) ![][]const u8 {
-        if (self.pipeline.getStage(stage_name)) |stage| {
+        if (self.getStage(stage_name)) |stage| {
             return try stage.getSystemNames(allocator);
         } else return PipelineError.StageNotFound;
     }
