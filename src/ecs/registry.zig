@@ -106,9 +106,7 @@ pub const Registry = struct {
         self.resources.deinit();
 
         for (self.plugins.items) |plugin| {
-            if (plugin.deinit_fn) |deinit_fn| {
-                deinit_fn(self);
-            }
+            if (plugin.deinit_fn) |deinit_fn| deinit_fn(self);
         }
         self.plugins.deinit();
 

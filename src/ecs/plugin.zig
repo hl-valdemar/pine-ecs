@@ -17,21 +17,21 @@ const Registry = @import("registry.zig").Registry;
 /// }.init);
 /// ```
 pub const Plugin = struct {
-    const InitFunc = *const fn (*Registry) anyerror!void;
-    const DeinitFunc = *const fn (*Registry) void;
+    const InitFn = *const fn (*Registry) anyerror!void;
+    const DeinitFn = *const fn (*Registry) void;
 
     name: []const u8,
-    init_fn: InitFunc,
-    deinit_fn: ?DeinitFunc = null,
+    init_fn: InitFn,
+    deinit_fn: ?DeinitFn = null,
 
-    pub fn init(name: []const u8, init_fn: InitFunc) Plugin {
+    pub fn init(name: []const u8, init_fn: InitFn) Plugin {
         return Plugin{
             .name = name,
             .init_fn = init_fn,
         };
     }
 
-    pub fn withDeinit(self: Plugin, deinit_fn: DeinitFunc) Plugin {
+    pub fn withDeinit(self: Plugin, deinit_fn: DeinitFn) Plugin {
         return Plugin{
             .name = self.name,
             .init_fn = self.init_fn,

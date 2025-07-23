@@ -212,12 +212,22 @@ pub const Pipeline = struct {
         } else return PipelineError.StageNotFound;
     }
 
+    /// Check if a pipeline is empty.
+    ///
+    /// Returns true if the pipeline contains no systems at any level in the hierarchy.
+    pub fn isEmpty(self: *const Pipeline) bool {
+        var stages_empty = true;
+        for (self.stages.items) |stage|
+            stages_empty = stages_empty and stage.isEmpty();
+        return stages_empty;
+    }
+
     /// Check whether a stage is void of systems.
     ///
     /// Note: returns `true` also in the case that an unregistered stage is checked.
     pub fn stageEmpty(self: *Pipeline, stage_name: []const u8) bool {
         if (self.getStage(stage_name)) |stage| {
-            return stage.systems.items.len == 0;
+            return stage.isEmpty();
         } else return true;
     }
 
@@ -250,8 +260,8 @@ pub const Pipeline = struct {
                 if (stage.config.parallel) "parallel" else "sequential",
                 stage.systems.items.len,
             });
-            for (stage.systems.items, 0..) |_, j| {
-                log.debug("    system {d}", .{j});
+            for (stage.systems.items, 0..) |system, j| {
+                log.debug("    system {d}: {s}", .{ j, system.metadata.name });
             }
         }
     }
@@ -308,6 +318,15 @@ pub const Stage = struct {
         if (self.substages) |*pipeline| {
             pipeline.deinit();
         }
+    }
+
+    /// Check whether a stage is empty.
+    ///
+    /// If a stage contains no systems and its substages (if present) contain
+    /// no systems, the stage is considered empty.
+    pub fn isEmpty(self: *const Stage) bool {
+        const substages_empty = if (self.substages) |substages| substages.isEmpty() else true;
+        return substages_empty and self.systems.items.len == 0;
     }
 
     pub fn addSystem(self: *Stage, comptime System: type) !void {

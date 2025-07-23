@@ -64,6 +64,8 @@ fn basicPipelineExample(allocator: std.mem.Allocator) !void {
     try registry.pipeline.addSystem("update", CollisionSystem);
     try registry.pipeline.addSystem("render", RenderSystem);
 
+    std.log.info("pipeline empty: {}", .{registry.pipeline.isEmpty()});
+
     // create some entities
     _ = try registry.spawn(.{
         Player{},
@@ -127,6 +129,8 @@ fn advancedPipelineExample(allocator: std.mem.Allocator) !void {
     try registry.pipeline.addSystem("physics", PhysicsSystem);
     try registry.pipeline.addSystem("render", RenderSystem);
     try registry.pipeline.addSystem("debug", DebugSystem);
+
+    std.log.info("pipeline empty: {}", .{registry.pipeline.isEmpty()});
 
     // set up game state
     try registry.registerResource(GameState);
@@ -198,6 +202,8 @@ fn dynamicPipelineExample(allocator: std.mem.Allocator) !void {
 
     std.log.info("\npipeline after modifications:", .{});
     registry.pipeline.debugPrint();
+
+    std.log.info("pipeline empty: {}", .{registry.pipeline.isEmpty()});
 
     // process the modified pipeline multiple times to see conditional execution
     var i: u32 = 0;
