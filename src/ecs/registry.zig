@@ -376,6 +376,8 @@ pub const Registry = struct {
     /// A query might look as follows:
     /// ```zig
     /// var result = try register.queryComponents(.{ Position, Velocity });
+    /// defer result.deinit();
+    ///
     /// while (result.next()) |entity| {
     ///     const position = entity.get(Position).?; // pointer to the position component
     ///     const velocity = entity.get(Velocity).?; // pointer to the velocity component
@@ -385,8 +387,7 @@ pub const Registry = struct {
     /// }
     /// ```
     ///
-    /// NB: If the result is not consumed, it should be deinitialized manually (with `deinit`) to
-    /// avoid leaking memory.
+    /// NB: caller owns the returned object and should `.deinit()` the allocator when after use.
     pub fn queryComponents(
         self: *Registry,
         component_types: anytype,
@@ -481,7 +482,7 @@ pub const Registry = struct {
 
     /// Returns the first resource of the sort.
     ///
-    /// NB: caller owns the returned resource (clone) - must be destroyed with allocators `.destroy(-)` method.
+    /// NB: caller owns the returned copy - must be destroyed with given allocators' `.destroy(-)` method.
     pub fn querySingleResource(self: *Registry, allocator: Allocator, comptime Resource: type) !*?Resource {
         var result = try self.queryResource(Resource);
         defer result.deinit();
