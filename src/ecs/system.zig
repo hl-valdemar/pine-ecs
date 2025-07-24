@@ -14,20 +14,20 @@ const SystemMetadata = struct {
 
 fn SystemTrait(comptime System: type) type {
     return struct {
-        // NOTE: inline to satisfy comptime if necessary
+        // define expected signatures
+        const InitFn = fn (Allocator) anyerror!System;
+        const DeinitFn = fn (*System) void;
+        const ProcessFn = fn (*System, *Registry) anyerror!void;
+
+        const metadata = SystemMetadata{
+            .has_init = @hasDecl(System, "init"),
+            .has_deinit = @hasDecl(System, "deinit"),
+            .has_process = @hasDecl(System, "process"),
+            .name = @typeName(System),
+        };
+
+        // NOTE: inline to satisfy comptime execution requirements
         pub inline fn validate() SystemMetadata {
-            const metadata = SystemMetadata{
-                .has_init = @hasDecl(System, "init"),
-                .has_deinit = @hasDecl(System, "deinit"),
-                .has_process = @hasDecl(System, "process"),
-                .name = @typeName(System),
-            };
-
-            // define expected signatures
-            const InitFn = fn (Allocator) anyerror!System;
-            const DeinitFn = fn (*System) void;
-            const ProcessFn = fn (*System, *Registry) anyerror!void;
-
             // validate signatures
             if (metadata.has_init) {
                 const init_type = @TypeOf(System.init);
