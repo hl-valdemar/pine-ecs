@@ -137,8 +137,8 @@ pub const Pipeline = struct {
             };
 
             // ensure this stage has substages
-            if (stage.substages) |substages| {
-                current_pipeline = &substages;
+            if (stage.substages) |*substages| {
+                current_pipeline = substages;
             } else {
                 log.err("substage pipeline '{s}' doesn't exist", .{path_components.items[i + 1]});
                 return PipelineError.NoSubstagePipeline;
