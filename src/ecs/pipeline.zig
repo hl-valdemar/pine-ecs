@@ -98,21 +98,103 @@ pub const Pipeline = struct {
         try self.rebuildStageMap();
     }
 
-    /// Add a system to a specific stage.
-    pub fn addSystem(self: *Pipeline, stage_name: []const u8, comptime System: type) !void {
-        const stage_index = self.stage_map.get(stage_name) orelse return PipelineError.StageNotFound;
-        var stage = &self.stages.items[stage_index];
+    /// Add a system to a specific stage using a dot-separated path.
+    /// Examples:
+    /// - "update" -> adds to the "update" stage at root level
+    /// - "update.pre" -> adds to the "pre" substage of "update"
+    /// - "update.pre.validation" -> adds to the "validation" substage of "pre" substage of "update"
+    pub fn addSystem(
+        self: *Pipeline,
+        stage_path: []const u8,
+        comptime System: type,
+    ) !void {
+        // parse stage path into components
+        var path_components = std.ArrayList([]const u8).init(self.allocator);
+        defer path_components.deinit();
 
+        var it = std.mem.splitScalar(u8, stage_path, '.');
+        while (it.next()) |component| {
+            if (component.len == 0) {
+                return error.InvalidStagePath; // empty component in path
+            }
+            try path_components.append(component);
+        }
+
+        if (path_components.items.len == 0) {
+            return error.InvalidStagePath;
+        }
+
+        // navigate to the target pipeline and stage
+        var current_pipeline: *Pipeline = self;
+
+        // navigate through nested substages (all components except the last)
+        var i: usize = 0;
+        while (i < path_components.items.len - 1) : (i += 1) {
+            const stage_name = path_components.items[i];
+
+            const stage = current_pipeline.getStage(stage_name) orelse {
+                return PipelineError.StageNotFound;
+            };
+
+            // ensure this stage has substages
+            if (stage.substages) |substages| {
+                current_pipeline = &substages;
+            } else {
+                log.err("substage pipeline '{s}' doesn't exist", .{path_components.items[i + 1]});
+                return PipelineError.NoSubstagePipeline;
+            }
+        }
+
+        // add system to the final stage
+        const final_stage_name = path_components.items[path_components.items.len - 1];
+        const stage_index = current_pipeline.stage_map.get(final_stage_name) orelse {
+            return PipelineError.StageNotFound;
+        };
+
+        var stage = &current_pipeline.stages.items[stage_index];
         try stage.addSystem(System);
     }
 
-    /// Add multiple systems to a stage at once.
-    pub fn addSystems(self: *Pipeline, stage_name: []const u8, comptime systems: anytype) !void {
-        const stage_index = self.stage_map.get(stage_name) orelse return PipelineError.StageNotFound;
-        var stage = &self.stages.items[stage_index];
+    // pub fn addSystem(
+    //     self: *Pipeline,
+    //     stage_path: []const u8,
+    //     comptime System: type,
+    // ) !void {
+    //     // parse stage path (e.g., "update.pre" -> stage: "update", substage: "pre")
+    //     var it = std.mem.splitScalar(u8, stage_path, '.');
+    //     const stage_name = it.next() orelse return error.InvalidStagePath;
+    //     const substage_name = it.next();
 
+    //     if (substage_name) |sub| {
+    //         // register in substage
+    //         if (self.getStage(stage_name)) |stage| {
+    //             if (stage.substages) |*substages| {
+    //                 try substages.addSystem(sub, System);
+    //             } else return PipelineError.NoSubstagePipeline;
+    //         } else return PipelineError.StageNotFound;
+    //     } else {
+    //         // register directly in stage
+    //         try self.registry.pipeline.addSystem(stage_name, System);
+    //     }
+    // }
+
+    /// Add a system to a specific stage.
+    // pub fn addSystem(self: *Pipeline, stage_name: []const u8, comptime System: type) !void {
+    //     var stage = self.getStage(stage_name) orelse {
+    //         return PipelineError.StageNotFound;
+    //     };
+
+    //     try stage.addSystem(System);
+    // }
+
+    /// Add multiple systems to a stage at once.
+    pub fn addSystems(
+        self: *Pipeline,
+        stage_path: []const u8,
+        comptime systems: anytype,
+    ) !void {
         inline for (systems) |System| {
-            try stage.addSystem(System);
+            try self.addSystem(stage_path, System);
         }
     }
 
@@ -124,14 +206,21 @@ pub const Pipeline = struct {
     }
 
     /// Execute only specific stages.
-    pub fn executeStages(self: *Pipeline, registry: *Registry, stage_names: []const []const u8) !void {
+    pub fn executeStages(
+        self: *Pipeline,
+        registry: *Registry,
+        stage_names: []const []const u8,
+    ) !void {
         var stage_indexes = std.ArrayList(usize).init(self.allocator);
         defer stage_indexes.deinit();
 
         // collect stage indexes
         for (stage_names) |stage_name| {
             const stage_index = self.stage_map.get(stage_name) orelse {
-                log.warn("trying to execute non-registered stage '{s}': {}", .{ stage_name, PipelineError.StageNotFound });
+                log.warn(
+                    "trying to execute non-registered stage '{s}': {}",
+                    .{ stage_name, PipelineError.StageNotFound },
+                );
                 continue;
             };
 

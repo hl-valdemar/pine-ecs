@@ -662,19 +662,19 @@ pub const Registry = struct {
     /// Add a system to a specific stage.
     pub fn addSystem(
         self: *Registry,
-        stage_name: []const u8,
+        stage_path: []const u8,
         comptime System: type,
     ) !void {
-        try self.pipeline.addSystem(stage_name, System);
+        try self.pipeline.addSystem(stage_path, System);
     }
 
     /// Add multiple systems to a stage at once.
     pub fn addSystems(
         self: *Registry,
-        stage_name: []const u8,
+        stage_path: []const u8,
         comptime systems: anytype,
     ) !void {
-        try self.pipeline.addSystems(stage_name, systems);
+        try self.pipeline.addSystems(stage_path, systems);
     }
 
     /// Execute the entire pipeline.
