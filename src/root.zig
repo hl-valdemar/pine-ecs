@@ -11,8 +11,11 @@ pub const log = @import("ecs/log.zig");
 pub const Archetype = archetype.Archetype;
 pub const ArchetypeHashType = archetype.ArchetypeHashType;
 
-pub const TypeErasedComponentStorage = component.TypeErasedComponentStorage;
-pub const TypeErasedResourceStorage = resource.TypeErasedResourceStorage;
+pub const ResourceKind = resource.ResourceKind;
+pub const TypeErasedSingleton = resource.TypeErasedSingleton;
+pub const TypeErasedCollection = resource.TypeErasedCollection;
+
+pub const TypeErasedComponent = component.TypeErasedComponent;
 pub const TypeErasedSystem = system.TypeErasedSystem;
 
 pub const Registry = registry.Registry;
@@ -37,6 +40,6 @@ const component = @import("ecs/component.zig");
 const registry = @import("ecs/registry.zig");
 const query = @import("ecs/query.zig");
 const system = @import("ecs/system.zig");
-const resource = @import("ecs/resource/singleton.zig");
+const resource = @import("ecs/resource/resource.zig");
 const plugin = @import("ecs/plugin.zig");
 const pipeline = @import("ecs/pipeline.zig");
