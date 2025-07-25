@@ -199,9 +199,9 @@ pub const Pipeline = struct {
     }
 
     /// Execute the entire pipeline.
-    pub fn execute(self: *Pipeline, registry: *Registry) void {
+    pub fn execute(self: *Pipeline, registry: *Registry) !void {
         for (self.stages.items) |*stage| {
-            stage.execute(registry);
+            try stage.execute(registry);
         }
     }
 
@@ -232,15 +232,15 @@ pub const Pipeline = struct {
 
         // execute in order
         for (stage_indexes.items) |idx| {
-            self.stages.items[idx].execute(registry);
+            try self.stages.items[idx].execute(registry);
         }
     }
 
     /// Execute stages matching a predicate.
-    pub fn executeStagesIf(self: *Pipeline, registry: *Registry, predicate: *const fn (stage_name: []const u8) bool) void {
+    pub fn executeStagesIf(self: *Pipeline, registry: *Registry, predicate: *const fn (stage_name: []const u8) bool) !void {
         for (self.stages.items) |*stage| {
             if (predicate(stage.name)) {
-                stage.execute(registry);
+                try stage.execute(registry);
             }
         }
     }
@@ -373,7 +373,7 @@ pub const StageConfig = struct {
     continue_on_error: bool = false,
 
     /// Optional condition to check before running this stage.
-    run_condition: ?*const fn (*Registry) bool = null,
+    run_condition: ?*const fn (*Registry) anyerror!bool = null,
 
     /// If true, stage is enabled by default.
     enabled: bool = true,
@@ -489,7 +489,7 @@ pub const Stage = struct {
         self.config.enabled = enabled;
     }
 
-    pub fn execute(self: *Stage, registry: *Registry) void {
+    pub fn execute(self: *Stage, registry: *Registry) anyerror!void {
         // check if stage is enabled
         if (!self.config.enabled) {
             log.debug("skipping disabled stage '{s}'", .{self.name});
@@ -498,7 +498,7 @@ pub const Stage = struct {
 
         // check run condition if present
         if (self.config.run_condition) |condition| {
-            if (!condition(registry)) {
+            if (!try condition(registry)) {
                 log.debug("skipping stage '{s}' due to run condition", .{self.name});
                 return;
             }
@@ -508,7 +508,7 @@ pub const Stage = struct {
 
         // first execute the substages
         if (self.substages) |*pipeline| {
-            pipeline.execute(registry);
+            try pipeline.execute(registry);
         }
 
         // then execute the immediate systems

@@ -34,6 +34,8 @@ const Weapon = struct {
         };
     }
 
+    // note that the deinit function signature must follow this convention.
+    // that is, `pub fn deinit(self: *R) void`.
     pub fn deinit(self: *Weapon) void {
         _ = self;
         std.debug.print("deinitializing the weapon resource...\n", .{});
@@ -54,7 +56,7 @@ pub fn main() !void {
     defer registry.deinit();
 
     // first register the resource type
-    try registry.registerResource(Potion);
+    try registry.registerResource(Potion, .collection);
 
     // then push a resource of the registered type to the registry
     try registry.pushResource(Potion{
@@ -67,7 +69,10 @@ pub fn main() !void {
     });
 
     // you can now query for this resource
-    var potions = try registry.queryResource(Potion);
+    var potions = switch (try registry.queryResource(Potion)) {
+        .collection => |col| col,
+        else => unreachable,
+    };
     defer potions.deinit();
 
     while (potions.next()) |potion| {
@@ -75,13 +80,16 @@ pub fn main() !void {
     }
 
     // let's register the weapon resource
-    try registry.registerResource(Weapon);
+    try registry.registerResource(Weapon, .collection);
 
     // and push it to the registry
     try registry.pushResource(Weapon.init());
 
     // let's query to see if it's actually there
-    var weapons = try registry.queryResource(Weapon);
+    var weapons = switch (try registry.queryResource(Weapon)) {
+        .collection => |col| col,
+        else => unreachable,
+    };
     defer weapons.deinit();
 
     while (weapons.next()) |weapon| {

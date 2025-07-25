@@ -29,30 +29,24 @@ fn SystemTrait(comptime System: type) type {
         // NOTE: inline to satisfy comptime execution requirements
         pub inline fn validate() SystemMetadata {
             // validate signatures
-            if (metadata.has_init) {
-                const init_type = @TypeOf(System.init);
-                if (init_type != InitFn) {
-                    @compileError(std.fmt.comptimePrint(
-                        \\System '{s}' has invalid init signature.
-                        \\Expected: {s}
-                        \\Found:    {s}
-                        \\
-                        \\Make sure the function is public and matches the expected signature.
-                    , .{ metadata.name, @typeName(InitFn), @typeName(init_type) }));
-                }
+            if (metadata.has_init and @TypeOf(System.init) != InitFn) {
+                @compileError(std.fmt.comptimePrint(
+                    \\System '{s}' has invalid init signature.
+                    \\Expected: {s}
+                    \\Found:    {s}
+                    \\
+                    \\Make sure the function is public and matches the expected signature.
+                , .{ metadata.name, @typeName(InitFn), @typeName(@TypeOf(System.init)) }));
             }
 
-            if (metadata.has_deinit) {
-                const deinit_type = @TypeOf(System.deinit);
-                if (deinit_type != DeinitFn) {
-                    @compileError(std.fmt.comptimePrint(
-                        \\System '{s}' has invalid deinit signature.
-                        \\Expected: {s}
-                        \\Found:    {s}
-                        \\
-                        \\Make sure the function is public and matches the expected signature.
-                    , .{ metadata.name, @typeName(DeinitFn), @typeName(deinit_type) }));
-                }
+            if (metadata.has_deinit and @TypeOf(System.deinit) != DeinitFn) {
+                @compileError(std.fmt.comptimePrint(
+                    \\System '{s}' has invalid deinit signature.
+                    \\Expected: {s}
+                    \\Found:    {s}
+                    \\
+                    \\Make sure the function is public and matches the expected signature.
+                , .{ metadata.name, @typeName(DeinitFn), @typeName(@TypeOf(System.deinit)) }));
             }
 
             if (metadata.has_process) {
@@ -66,14 +60,12 @@ fn SystemTrait(comptime System: type) type {
                         \\Make sure the function is public and matches the expected signature.
                     , .{ metadata.name, @typeName(ProcessFn), @typeName(process_type) }));
                 }
-            } else {
-                @compileError(std.fmt.comptimePrint(
-                    \\System '{s}' is missing the required process function.
-                    \\
-                    \\Every system must define:
-                    \\  pub fn process(self: *{s}, registry: *Registry) anyerror!void
-                , .{ metadata.name, metadata.name }));
-            }
+            } else @compileError(std.fmt.comptimePrint(
+                \\System '{s}' is missing the required process function.
+                \\
+                \\Every system must define:
+                \\  pub fn process(self: *{s}, registry: *Registry) anyerror!void
+            , .{ metadata.name, metadata.name }));
 
             return metadata;
         }

@@ -1,0 +1,1 @@
+- [ ] rework resource system to be less clunky to work with. we should consider how to efficiently and elegantly store and query both singleton values and collections.

@@ -95,9 +95,7 @@ pub fn ResourceStorage(comptime Resource: type) type {
 
         pub fn deinit(self: *Self) void {
             // first deinit resources if necessary
-            if (@hasDecl(Resource, "deinit") and
-                @typeInfo(@TypeOf(@field(Resource, "deinit"))) == .@"fn")
-            {
+            if (@hasDecl(Resource, "deinit")) {
                 for (self.resources.items) |*resource| {
                     resource.deinit();
                 }

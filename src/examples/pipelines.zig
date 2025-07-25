@@ -82,12 +82,12 @@ fn basicPipelineExample(allocator: std.mem.Allocator) !void {
     });
 
     // register resources
-    try registry.registerResource(InputState);
+    try registry.registerResource(InputState, .collection);
     try registry.pushResource(InputState{});
 
     // process all systems in pipeline order
     std.log.info("processing full pipeline...", .{});
-    registry.pipeline.execute(&registry);
+    try registry.pipeline.execute(&registry);
 
     // process only specific stages
     std.log.info("processing only update and render stages...", .{});
@@ -107,10 +107,12 @@ fn advancedPipelineExample(allocator: std.mem.Allocator) !void {
     try registry.pipeline.addStage("ai", .{
         // only run ai when game is not paused
         .run_condition = struct {
-            fn condition(reg: *ecs.Registry) bool {
-                const state = reg.querySingleResource(std.heap.page_allocator, GameState) catch return true;
-                defer std.heap.page_allocator.destroy(state);
-                return !(state.* orelse GameState{}).paused;
+            fn condition(reg: *ecs.Registry) !bool {
+                const state = switch (try reg.queryResource(GameState)) {
+                    .single => |state| state,
+                    .collection => unreachable,
+                };
+                return !(state.resource orelse GameState{}).paused;
             }
         }.condition,
     });
@@ -133,19 +135,19 @@ fn advancedPipelineExample(allocator: std.mem.Allocator) !void {
     std.log.info("pipeline empty: {}", .{registry.pipeline.isEmpty()});
 
     // set up game state
-    try registry.registerResource(GameState);
+    try registry.registerResource(GameState, .single);
     try registry.pushResource(GameState{ .paused = false });
 
     // process normally
     std.log.info("processing with game running...", .{});
-    registry.pipeline.execute(&registry);
+    try registry.pipeline.execute(&registry);
 
     // pause the game and process again
     try registry.clearResource(GameState);
     try registry.pushResource(GameState{ .paused = true });
 
     std.log.info("processing with game paused (ai should skip)...", .{});
-    registry.pipeline.execute(&registry);
+    try registry.pipeline.execute(&registry);
 
     // enable debug stage
     if (registry.pipeline.getStage("debug")) |debug_stage| {
@@ -153,7 +155,7 @@ fn advancedPipelineExample(allocator: std.mem.Allocator) !void {
     }
 
     std.log.info("processing with debug enabled...", .{});
-    registry.pipeline.execute(&registry);
+    try registry.pipeline.execute(&registry);
 }
 
 fn dynamicPipelineExample(allocator: std.mem.Allocator) !void {
@@ -189,7 +191,7 @@ fn dynamicPipelineExample(allocator: std.mem.Allocator) !void {
     try registry.pipeline.addStage("expensive_calculations", .{
         .run_condition = struct {
             var frame_counter: u32 = 0;
-            fn condition(_: *ecs.Registry) bool {
+            fn condition(_: *ecs.Registry) !bool {
                 frame_counter += 1;
                 return frame_counter % 10 == 0; // run every 10 frames
             }
@@ -209,7 +211,7 @@ fn dynamicPipelineExample(allocator: std.mem.Allocator) !void {
     var i: u32 = 0;
     while (i < 12) : (i += 1) {
         std.log.info("\n--- Frame {} ---", .{i});
-        registry.pipeline.execute(&registry);
+        try registry.pipeline.execute(&registry);
     }
 }
 

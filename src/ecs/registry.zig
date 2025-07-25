@@ -17,8 +17,12 @@ const ArchetypeHash = res.ArchetypeHash;
 const Stage = @import("pipeline.zig").Stage;
 const StageConfig = @import("pipeline.zig").StageConfig;
 const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
-const TypeErasedResourceStorage = @import("resource.zig").TypeErasedResourceStorage;
+const TypeErasedResourceStorage = @import("resource/resource.zig").TypeErasedResourceStorage;
 const UpdateBuffer = @import("component.zig").UpdateBuffer;
+const ResourceManager = @import("resource/resource.zig").ResourceManager;
+const ResourceKind = @import("resource/resource.zig").ResourceKind;
+const ResourceQuery = @import("resource/resource.zig").ResourceQuery;
+const RemoveInfo = @import("resource/resource.zig").RemoveInfo;
 
 pub const EntityID = u32;
 
@@ -52,7 +56,8 @@ pub const Registry = struct {
     archetypes: std.AutoHashMap(ArchetypeHash, Archetype),
 
     /// Data not related to any particular entities.
-    resources: std.StringHashMap(TypeErasedResourceStorage),
+    // resources: std.StringHashMap(TypeErasedResourceStorage),
+    resources: ResourceManager,
 
     /// Plugins bundle behavior.
     plugins: std.ArrayList(Plugin),
@@ -67,7 +72,8 @@ pub const Registry = struct {
             .allocator = allocator,
             .entities = std.AutoHashMap(EntityID, EntityPointer).init(allocator),
             .archetypes = std.AutoHashMap(ArchetypeHash, Archetype).init(allocator),
-            .resources = std.StringHashMap(TypeErasedResourceStorage).init(allocator),
+            // .resources = std.StringHashMap(TypeErasedResourceStorage).init(allocator),
+            .resources = try ResourceManager.init(allocator),
             .plugins = std.ArrayList(Plugin).init(allocator),
             .pipeline = Pipeline.init(allocator),
             .update_buffer = UpdateBuffer.init(allocator),
@@ -99,10 +105,10 @@ pub const Registry = struct {
         }
         self.archetypes.deinit();
 
-        var resource_iter = self.resources.valueIterator();
-        while (resource_iter.next()) |resource| {
-            resource.deinit();
-        }
+        // var resource_iter = self.resources.valueIterator();
+        // while (resource_iter.next()) |resource| {
+        //     resource.deinit();
+        // }
         self.resources.deinit();
 
         for (self.plugins.items) |plugin| {
@@ -452,76 +458,50 @@ pub const Registry = struct {
         return try ComponentQueryIterator(component_types).init(self.allocator, buffer.items);
     }
 
-    pub fn registerResource(self: *Registry, comptime Resource: type) !void {
-        const resource_name = @typeName(Resource);
-        const entry = try self.resources.getOrPut(resource_name);
-
-        if (!entry.found_existing) {
-            entry.value_ptr.* = try TypeErasedResourceStorage.init(self.allocator, Resource);
-        }
-
-        log.info("registered resource [{s}]", .{resource_name});
+    /// Register a resource with the registry.
+    pub fn registerResource(self: *Registry, comptime R: type, kind: ResourceKind) !void {
+        try self.resources.register(R, kind);
     }
 
-    /// Check if a resource is registered.
-    pub fn resourceRegistered(self: *Registry, comptime Resource: type) bool {
-        return self.resources.contains(@typeName(Resource));
+    /// Check whether a resource has been registered.
+    pub fn resourceRegistered(self: *Registry, comptime R: type) bool {
+        return self.resources.isRegistered(R);
     }
 
-    pub fn queryResource(self: *Registry, comptime Resource: type) !ResourceQueryIterator(Resource) {
-        const resource_name = @typeName(Resource);
-        if (self.resources.get(resource_name)) |type_erased_resource_storage| {
-            const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, Resource);
-            return try ResourceQueryIterator(Resource).init(self.allocator, resource_storage.resources.items);
-        }
-        // log.err("tried to query unregistered resource [{s}]!", .{ resource_name });
-        return RegistryError.UnregisteredResource;
+    /// Query for a *registered* resource.
+    pub fn queryResource(self: *Registry, comptime R: type) !ResourceQuery(R) {
+        return try self.resources.query(R);
     }
 
     /// Returns the first resource of the sort.
     ///
     /// NB: caller owns the returned copy - must be destroyed with given allocators' `.destroy(-)` method.
-    pub fn querySingleResource(self: *Registry, allocator: Allocator, comptime Resource: type) !*?Resource {
-        var result = try self.queryResource(Resource);
-        defer result.deinit();
+    // pub fn querySingleResource(self: *Registry, allocator: Allocator, comptime Resource: type) !*?Resource {
+    //     var result = try self.queryResource(Resource);
+    //     defer result.deinit();
 
-        const resource_ptr = try allocator.create(?Resource);
-        resource_ptr.* = result.next();
+    //     const resource_ptr = try allocator.create(?Resource);
+    //     resource_ptr.* = result.next();
 
-        return resource_ptr;
-    }
+    //     return resource_ptr;
+    // }
 
+    /// Push a *registered* resource to the registry.
     pub fn pushResource(self: *Registry, resource: anytype) !void {
-        const resource_type = @TypeOf(resource);
-        const resource_name = @typeName(resource_type);
-
-        if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
-            const resource_storage = TypeErasedResourceStorage.cast(type_erased_resource_storage.ptr, resource_type);
-            try resource_storage.resources.append(resource);
-        } else {
-            // log.err("tried to push unregistered resource [{s}]!", .{ resource_name });
-            return RegistryError.UnregisteredResource;
-        }
+        try self.resources.push(resource);
     }
 
-    pub fn clearResource(self: *Registry, comptime Resource: type) RegistryError!void {
-        const resource_name = @typeName(Resource);
-        if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
-            type_erased_resource_storage.clear();
-        } else {
-            // log.err("tried to clear unregistered resource [{s}]!", .{ resource_name });
-            return RegistryError.UnregisteredResource;
-        }
+    pub fn clearResource(self: *Registry, comptime R: type) !void {
+        try self.resources.clear(R);
     }
 
-    pub fn removeResource(self: *Registry, comptime Resource: type, idx: usize) RegistryError!void {
-        const resource_name = @typeName(Resource);
-        if (self.resources.getPtr(resource_name)) |type_erased_resource_storage| {
-            type_erased_resource_storage.remove(idx);
-        } else {
-            // log.err("tried to remove unregistered resource [{s}]!", .{ resource_name });
-            return RegistryError.UnregisteredResource;
-        }
+    pub fn removeResource(self: *Registry, comptime R: type, index: usize) !void {
+        try self.resources.remove(RemoveInfo(R){
+            .collection = .{
+                .R = R,
+                .index = index,
+            },
+        });
     }
 
     pub fn addPlugin(self: *Registry, plugin: Plugin) !void {
