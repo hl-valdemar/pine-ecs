@@ -1,9 +1,11 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const TypeErasedCollection = @import("resource-old.zig").TypeErasedResourceStorage;
-const ResourceQueryIterator = @import("../query.zig").ResourceQueryIterator;
 const log = @import("../log.zig");
+const ResourceQueryIterator = @import("../query.zig").ResourceQueryIterator;
+const Singleton = @import("singleton.zig").Singleton;
+const TypeErasedCollection = @import("collection.zig").TypeErasedCollection;
+const TypeErasedSingleton = @import("singleton.zig").TypeErasedSingleton;
 
 pub const ResourceError = error{
     ResourceNotRegistered,
@@ -17,21 +19,21 @@ pub const ResourceKind = enum {
 
 pub fn ResourceQuery(comptime R: type) type {
     return union(ResourceKind) {
-        single: *Resource(R),
+        single: *Singleton(R),
         collection: ResourceQueryIterator(R),
     };
 }
 
 pub const ResourceManager = struct {
     allocator: Allocator,
-    singletons: std.StringHashMap(TypeErasedResource),
+    singletons: std.StringHashMap(TypeErasedSingleton),
     collections: std.StringHashMap(TypeErasedCollection),
     kind_map: std.StringHashMap(ResourceKind),
 
     pub fn init(allocator: Allocator) !ResourceManager {
         return ResourceManager{
             .allocator = allocator,
-            .singletons = std.StringHashMap(TypeErasedResource).init(allocator),
+            .singletons = std.StringHashMap(TypeErasedSingleton).init(allocator),
             .collections = std.StringHashMap(TypeErasedCollection).init(allocator),
             .kind_map = std.StringHashMap(ResourceKind).init(allocator),
         };
@@ -89,7 +91,7 @@ pub const ResourceManager = struct {
             .single => {
                 const resource_entry = try self.singletons.getOrPut(name);
                 if (!resource_entry.found_existing) {
-                    resource_entry.value_ptr.* = try TypeErasedResource.init(self.allocator, R);
+                    resource_entry.value_ptr.* = try TypeErasedSingleton.init(self.allocator, R);
                 } else return ResourceError.ResourceAlreadyRegistered;
                 log.info("registered resource [{s}] as a singleton", .{name});
             },
@@ -114,14 +116,14 @@ pub const ResourceManager = struct {
         switch (kind) {
             .single => {
                 if (self.singletons.get(name)) |type_erased| {
-                    const storage = TypeErasedResource.cast(type_erased.ptr, R);
+                    const storage = TypeErasedSingleton.cast(type_erased.ptr, R);
                     return ResourceQuery(R){ .single = storage };
                 } else return ResourceError.ResourceNotRegistered;
             },
             .collection => {
                 if (self.collections.get(name)) |type_erased| {
-                    const collection = TypeErasedCollection.cast(type_erased.ptr, R);
-                    const iter = try ResourceQueryIterator(R).init(self.allocator, collection.resources.items);
+                    const storage = TypeErasedCollection.cast(type_erased.ptr, R);
+                    const iter = try ResourceQueryIterator(R).init(self.allocator, storage.collection.items);
                     return ResourceQuery(R){ .collection = iter };
                 } else return ResourceError.ResourceNotRegistered;
             },
@@ -140,14 +142,14 @@ pub const ResourceManager = struct {
         switch (kind) {
             .single => {
                 if (self.singletons.getPtr(name)) |type_erased| {
-                    const storage = TypeErasedResource.cast(type_erased.ptr, R);
+                    const storage = TypeErasedSingleton.cast(type_erased.ptr, R);
                     storage.resource = resource;
                 } else return ResourceError.ResourceNotRegistered;
             },
             .collection => {
                 if (self.collections.getPtr(name)) |type_erased| {
                     const storage = TypeErasedCollection.cast(type_erased.ptr, R);
-                    try storage.resources.append(resource);
+                    try storage.collection.append(resource);
                 } else return ResourceError.ResourceNotRegistered;
             },
         }
@@ -200,87 +202,3 @@ pub const ResourceManager = struct {
         }
     }
 };
-
-const TypeErasedResource = struct {
-    allocator: Allocator,
-    ptr: *anyopaque,
-    vtable: *const ResourceVTable,
-
-    pub fn init(allocator: Allocator, comptime R: type) !TypeErasedResource {
-        const resource_ptr = try allocator.create(Resource(R));
-        resource_ptr.* = Resource(R).init();
-
-        return TypeErasedResource{
-            .allocator = allocator,
-            .ptr = resource_ptr,
-            .vtable = &comptime makeResourceVTable(R),
-        };
-    }
-
-    pub fn deinit(self: *const TypeErasedResource) void {
-        self.vtable.deinit(self.allocator, self.ptr);
-    }
-
-    pub fn destroyResource(self: *const TypeErasedResource) void {
-        self.vtable.destroyResource(self.ptr);
-    }
-
-    /// Cast a type erased resource to a Resource(R) of type R.
-    ///
-    /// Note: casting to an inappropriate type *will* lead to undefined behavior.
-    pub fn cast(type_erased_ptr: *anyopaque, comptime R: type) *Resource(R) {
-        return @alignCast(@ptrCast(type_erased_ptr));
-    }
-};
-
-const ResourceVTable = struct {
-    deinit: *const fn (Allocator, *anyopaque) void,
-    destroyResource: *const fn (*anyopaque) void,
-};
-
-fn Resource(comptime R: type) type {
-    return struct {
-        const Self = @This();
-
-        resource: ?R,
-
-        pub fn init() Self {
-            return Self{ .resource = null };
-        }
-
-        pub fn deinit(self: *Self) void {
-            // deinit if appropriate
-            if (self.resource) |*res| {
-                if (resourceHasDeinit()) res.deinit();
-            }
-        }
-
-        pub fn destroyResource(self: *Self) void {
-            // deinit if appropriate
-            if (self.resource) |*res| {
-                if (resourceHasDeinit()) res.deinit();
-                self.resource = null;
-            }
-        }
-
-        // note: inline for comptime reasons
-        inline fn resourceHasDeinit() bool {
-            return @hasDecl(R, "deinit");
-        }
-    };
-}
-
-fn makeResourceVTable(comptime R: type) ResourceVTable {
-    return ResourceVTable{ .deinit = (struct {
-        fn func(allocator: Allocator, type_erased_ptr: *anyopaque) void {
-            const typed_ptr = TypeErasedResource.cast(type_erased_ptr, R);
-            typed_ptr.deinit();
-            allocator.destroy(typed_ptr);
-        }
-    }.func), .destroyResource = (struct {
-        fn func(type_erased_ptr: *anyopaque) void {
-            const typed_ptr = TypeErasedResource.cast(type_erased_ptr, R);
-            typed_ptr.destroyResource();
-        }
-    }.func) };
-}

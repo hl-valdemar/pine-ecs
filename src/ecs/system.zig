@@ -118,7 +118,7 @@ pub const SystemVTable = struct {
 
 pub fn makeSystemVTable(comptime System: type, metadata: SystemMetadata) SystemVTable {
     return SystemVTable{
-        .deinit = (struct {
+        .deinit = struct {
             fn func(allocator: Allocator, type_erased_system_ptr: *anyopaque) void {
                 const system = TypeErasedSystem.cast(type_erased_system_ptr, System);
 
@@ -127,14 +127,14 @@ pub fn makeSystemVTable(comptime System: type, metadata: SystemMetadata) SystemV
 
                 allocator.destroy(system);
             }
-        }).func,
-        .process = (struct {
+        }.func,
+        .process = struct {
             fn func(type_erased_system_ptr: *anyopaque, registry: *Registry) anyerror!void {
                 const system = TypeErasedSystem.cast(type_erased_system_ptr, System);
                 if (metadata.has_process) {
                     try system.process(registry);
                 } else unreachable;
             }
-        }).func,
+        }.func,
     };
 }

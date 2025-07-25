@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const EntityID = @import("registry.zig").EntityID;
-const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
+const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponent;
 
 pub const ArchetypeHash = u64;
 

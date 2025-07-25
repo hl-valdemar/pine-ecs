@@ -16,13 +16,13 @@ const Archetype = res.Archetype;
 const ArchetypeHash = res.ArchetypeHash;
 const Stage = @import("pipeline.zig").Stage;
 const StageConfig = @import("pipeline.zig").StageConfig;
-const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponentStorage;
-const TypeErasedResourceStorage = @import("resource/resource.zig").TypeErasedResourceStorage;
+const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponent;
+const TypeErasedResourceStorage = @import("resource/singleton.zig").TypeErasedResourceStorage;
 const UpdateBuffer = @import("component.zig").UpdateBuffer;
-const ResourceManager = @import("resource/resource.zig").ResourceManager;
-const ResourceKind = @import("resource/resource.zig").ResourceKind;
-const ResourceQuery = @import("resource/resource.zig").ResourceQuery;
-const RemoveInfo = @import("resource/resource.zig").RemoveInfo;
+const ResourceManager = @import("resource/manager.zig").ResourceManager;
+const ResourceKind = @import("resource/manager.zig").ResourceKind;
+const ResourceQuery = @import("resource/manager.zig").ResourceQuery;
+const RemoveInfo = @import("resource/manager.zig").RemoveInfo;
 
 pub const EntityID = u32;
 

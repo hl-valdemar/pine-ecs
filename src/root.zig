@@ -37,6 +37,6 @@ const component = @import("ecs/component.zig");
 const registry = @import("ecs/registry.zig");
 const query = @import("ecs/query.zig");
 const system = @import("ecs/system.zig");
-const resource = @import("ecs/resource/resource.zig");
+const resource = @import("ecs/resource/singleton.zig");
 const plugin = @import("ecs/plugin.zig");
 const pipeline = @import("ecs/pipeline.zig");
