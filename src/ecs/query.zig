@@ -38,13 +38,13 @@ pub fn EntityView(comptime component_types: anytype) type {
         }
 
         /// Get a specific component by type.
-        pub fn get(self: *const Self, comptime ComponentType: type) ?*ComponentType {
+        pub fn get(self: *const Self, comptime C: type) ?*C {
             comptime var i = 0;
             inline while (i < component_count) : (i += 1) {
                 // extract the actual type directly from the tuple value
                 const FieldType = @field(component_types, std.fmt.comptimePrint("{d}", .{i}));
 
-                if (FieldType == ComponentType)
+                if (FieldType == C)
                     return @ptrCast(@alignCast(self.component_ptrs[i]));
             }
             return null;
@@ -101,18 +101,18 @@ pub fn ComponentQueryIterator(comptime component_types: anytype) type {
 /// Note: this iterator clones the resources under the assumption of
 /// potential changes to the underlying data. This may be a good place to
 /// optimize for memory consumption if this assumption proves naught.
-pub fn ResourceQueryIterator(comptime Resource: type) type {
+pub fn ResourceQueryIterator(comptime R: type) type {
     return struct {
         const Self = @This();
 
         allocator: Allocator,
-        resources: []Resource,
+        resources: []R,
         index: usize = 0,
 
-        pub fn init(allocator: Allocator, resources: []Resource) !Self {
+        pub fn init(allocator: Allocator, resources: []R) !Self {
             return Self{
                 .allocator = allocator,
-                .resources = try allocator.dupe(Resource, resources),
+                .resources = try allocator.dupe(R, resources),
                 .index = 0,
             };
         }
@@ -121,7 +121,7 @@ pub fn ResourceQueryIterator(comptime Resource: type) type {
             self.allocator.free(self.resources);
         }
 
-        pub fn next(self: *Self) ?Resource {
+        pub fn next(self: *Self) ?R {
             defer self.index += 1; // increment when done
 
             if (self.index < self.resources.len)
@@ -142,14 +142,14 @@ pub fn BufferedEntityView(comptime component_types: anytype) type {
         update_buffer: *UpdateBuffer,
 
         /// Get a component for reading (same as regular EntityView).
-        pub fn get(self: *const Self, comptime ComponentType: type) ?*const ComponentType {
-            return self.base_view.get(ComponentType);
+        pub fn get(self: *const Self, comptime C: type) ?*const C {
+            return self.base_view.get(C);
         }
 
         /// Get a mutable component that queues updates.
-        pub fn getMut(self: *Self, comptime ComponentType: type) ?BufferedComponent(ComponentType) {
-            if (self.base_view.get(ComponentType)) |component_ptr| {
-                return BufferedComponent(ComponentType){
+        pub fn getMut(self: *Self, comptime C: type) ?BufferedComponent(C) {
+            if (self.base_view.get(C)) |component_ptr| {
+                return BufferedComponent(C){
                     .ptr = component_ptr,
                     .entity_id = self.base_view.entity_id,
                     .update_buffer = self.update_buffer,
@@ -164,29 +164,29 @@ pub fn BufferedEntityView(comptime component_types: anytype) type {
     };
 }
 
-pub fn BufferedComponent(comptime ComponentType: type) type {
+pub fn BufferedComponent(comptime C: type) type {
     return struct {
         const Self = @This();
 
-        ptr: *ComponentType,
+        ptr: *C,
         entity_id: EntityID,
         update_buffer: *UpdateBuffer,
 
         /// Queue a new value for this component.
-        pub fn set(self: Self, new_value: ComponentType) !void {
-            const bytes = try self.update_buffer.allocator.alloc(u8, @sizeOf(ComponentType));
+        pub fn set(self: Self, new_value: C) !void {
+            const bytes = try self.update_buffer.allocator.alloc(u8, @sizeOf(C));
             @memcpy(bytes, std.mem.asBytes(&new_value));
 
             const copy_fn = struct {
                 fn copy(dst_ptr: *anyopaque, src_bytes: []const u8) void {
-                    const typed_dst: *ComponentType = @ptrCast(@alignCast(dst_ptr));
-                    typed_dst.* = std.mem.bytesToValue(ComponentType, src_bytes[0..@sizeOf(ComponentType)]);
+                    const typed_dst: *C = @ptrCast(@alignCast(dst_ptr));
+                    typed_dst.* = std.mem.bytesToValue(C, src_bytes[0..@sizeOf(C)]);
                 }
             }.copy;
 
             try self.update_buffer.updates.append(.{
                 .entity_id = self.entity_id,
-                .component_type_name = @typeName(ComponentType),
+                .component_type_name = @typeName(C),
                 .component_ptr = self.ptr,
                 .new_value_bytes = bytes,
                 .copy_fn = copy_fn,
@@ -194,7 +194,7 @@ pub fn BufferedComponent(comptime ComponentType: type) type {
         }
 
         /// Get read-only access to current value.
-        pub fn get(self: Self) *const ComponentType {
+        pub fn get(self: Self) *const C {
             return self.ptr;
         }
     };

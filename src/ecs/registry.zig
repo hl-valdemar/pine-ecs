@@ -206,7 +206,7 @@ pub const Registry = struct {
         allocator: Allocator,
         prev_archetype: *Archetype,
         component_type_name: []const u8,
-        comptime ComponentType: type,
+        comptime C: type,
     ) !Archetype {
         const resulting_hash = prev_archetype.hash ^ std.hash_map.hashString(component_type_name);
 
@@ -227,7 +227,7 @@ pub const Registry = struct {
         }
 
         // add storage for the new component type
-        const new_type_erased_storage = try TypeErasedComponentStorage.init(allocator, ComponentType);
+        const new_type_erased_storage = try TypeErasedComponentStorage.init(allocator, C);
         errdefer new_type_erased_storage.deinit();
 
         try new_archetype.components.put(component_type_name, new_type_erased_storage);
@@ -360,7 +360,7 @@ pub const Registry = struct {
     }
 
     /// Check if an entity has a certain component.
-    pub fn hasComponent(self: *Registry, entity: EntityID, comptime Component: type) bool {
+    pub fn hasComponent(self: *Registry, entity: EntityID, comptime C: type) bool {
         // get component names from archetype
         const entity_ptr = self.entities.get(entity) orelse return false;
         const archetype = self.archetypes.get(entity_ptr.archetype_hash) orelse return false;
@@ -368,7 +368,7 @@ pub const Registry = struct {
 
         // check for a match
         for (component_names) |name| {
-            if (std.mem.eql(u8, name, @typeName(Component)))
+            if (std.mem.eql(u8, name, @typeName(C)))
                 return true;
         }
 
@@ -643,9 +643,9 @@ pub const Registry = struct {
     pub fn addSystem(
         self: *Registry,
         stage_path: []const u8,
-        comptime System: type,
+        comptime S: type,
     ) !void {
-        try self.pipeline.addSystem(stage_path, System);
+        try self.pipeline.addSystem(stage_path, S);
     }
 
     /// Add multiple systems to a stage at once.

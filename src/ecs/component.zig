@@ -11,18 +11,18 @@ pub const ComponentVTable = struct {
     getComponentPtr: *const fn (*anyopaque, usize) *anyopaque,
 };
 
-pub fn makeComponentVTable(comptime Component: type) ComponentVTable {
+pub fn makeComponentVTable(comptime C: type) ComponentVTable {
     return ComponentVTable{
         .deinit = struct {
             fn func(alloc: Allocator, type_erased_components_ptr: *anyopaque) void {
-                const storage = TypeErasedComponent.cast(type_erased_components_ptr, Component);
+                const storage = TypeErasedComponent.cast(type_erased_components_ptr, C);
                 storage.deinit();
                 alloc.destroy(storage);
             }
         }.func,
         .swapRemove = struct {
             fn func(type_erased_components_ptr: *anyopaque, entity_idx: usize) void {
-                var storage = TypeErasedComponent.cast(type_erased_components_ptr, Component);
+                var storage = TypeErasedComponent.cast(type_erased_components_ptr, C);
                 storage.swapRemove(entity_idx);
             }
         }.func,
@@ -33,27 +33,27 @@ pub fn makeComponentVTable(comptime Component: type) ComponentVTable {
                 src_entity_idx: usize,
                 dst_entity_idx: usize,
             ) Allocator.Error!void {
-                var src_storage = TypeErasedComponent.cast(src_type_erased_components_ptr, Component);
-                const dst_storage = TypeErasedComponent.cast(dst_type_erased_components_ptr, Component);
+                var src_storage = TypeErasedComponent.cast(src_type_erased_components_ptr, C);
+                const dst_storage = TypeErasedComponent.cast(dst_type_erased_components_ptr, C);
                 try src_storage.copy(src_entity_idx, dst_storage, dst_entity_idx);
             }
         }.func,
         .createEmpty = struct {
             fn func(allocator: Allocator) Allocator.Error!TypeErasedComponent {
                 // create a new empty storage of component type
-                const components_ptr = try allocator.create(ComponentStorage(Component));
-                components_ptr.* = ComponentStorage(Component).init(allocator);
+                const components_ptr = try allocator.create(ComponentStorage(C));
+                components_ptr.* = ComponentStorage(C).init(allocator);
 
                 return TypeErasedComponent{
                     .allocator = allocator,
                     .ptr = components_ptr,
-                    .vtable = &comptime makeComponentVTable(Component),
+                    .vtable = &comptime makeComponentVTable(C),
                 };
             }
         }.func,
         .getComponentPtr = struct {
             fn func(type_erased_components_ptr: *anyopaque, idx: usize) *anyopaque {
-                const components_ptr = TypeErasedComponent.cast(type_erased_components_ptr, Component);
+                const components_ptr = TypeErasedComponent.cast(type_erased_components_ptr, C);
                 return &components_ptr.components.items[idx];
             }
         }.func,
@@ -65,14 +65,14 @@ pub const TypeErasedComponent = struct {
     ptr: *anyopaque,
     vtable: *const ComponentVTable,
 
-    pub fn init(allocator: Allocator, comptime Component: type) !TypeErasedComponent {
-        const components_ptr = try allocator.create(ComponentStorage(Component));
-        components_ptr.* = ComponentStorage(Component).init(allocator);
+    pub fn init(allocator: Allocator, comptime C: type) !TypeErasedComponent {
+        const components_ptr = try allocator.create(ComponentStorage(C));
+        components_ptr.* = ComponentStorage(C).init(allocator);
 
         return TypeErasedComponent{
             .allocator = allocator,
             .ptr = components_ptr,
-            .vtable = &comptime makeComponentVTable(Component),
+            .vtable = &comptime makeComponentVTable(C),
         };
     }
 
@@ -104,20 +104,20 @@ pub const TypeErasedComponent = struct {
     /// Cast a type erased component storage to a ComponentStorage(Component) of the given component type.
     ///
     /// NOTE: if cast to an inappropriate type, use may lead to corruption of memory.
-    pub fn cast(type_erased_components_ptr: *anyopaque, comptime Component: type) *ComponentStorage(Component) {
+    pub fn cast(type_erased_components_ptr: *anyopaque, comptime C: type) *ComponentStorage(C) {
         return @alignCast(@ptrCast(type_erased_components_ptr));
     }
 };
 
-pub fn ComponentStorage(comptime Component: type) type {
+pub fn ComponentStorage(comptime C: type) type {
     return struct {
         const Self = @This();
 
-        components: std.ArrayList(Component),
+        components: std.ArrayList(C),
 
         pub fn init(allocator: Allocator) Self {
             return Self{
-                .components = std.ArrayList(Component).init(allocator),
+                .components = std.ArrayList(C).init(allocator),
             };
         }
 
@@ -126,7 +126,7 @@ pub fn ComponentStorage(comptime Component: type) type {
         }
 
         /// Replace the component for the given entity index.
-        pub fn set(self: *Self, entity_idx: usize, component: Component) !void {
+        pub fn set(self: *Self, entity_idx: usize, component: C) !void {
             if (entity_idx >= self.components.items.len)
                 try self.components.appendNTimes(undefined, entity_idx - self.components.items.len + 1);
 
@@ -134,7 +134,7 @@ pub fn ComponentStorage(comptime Component: type) type {
         }
 
         /// Get the component for the given entity index.
-        pub fn get(self: *Self, entity_idx: usize) Component {
+        pub fn get(self: *Self, entity_idx: usize) C {
             std.debug.assert(entity_idx < self.components.items.len);
             return self.components.items[entity_idx];
         }

@@ -106,7 +106,7 @@ pub const Pipeline = struct {
     pub fn addSystem(
         self: *Pipeline,
         stage_path: []const u8,
-        comptime System: type,
+        comptime S: type,
     ) !void {
         // parse stage path into components
         var path_components = std.ArrayList([]const u8).init(self.allocator);
@@ -152,40 +152,8 @@ pub const Pipeline = struct {
         };
 
         var stage = &current_pipeline.stages.items[stage_index];
-        try stage.addSystem(System);
+        try stage.addSystem(S);
     }
-
-    // pub fn addSystem(
-    //     self: *Pipeline,
-    //     stage_path: []const u8,
-    //     comptime System: type,
-    // ) !void {
-    //     // parse stage path (e.g., "update.pre" -> stage: "update", substage: "pre")
-    //     var it = std.mem.splitScalar(u8, stage_path, '.');
-    //     const stage_name = it.next() orelse return error.InvalidStagePath;
-    //     const substage_name = it.next();
-
-    //     if (substage_name) |sub| {
-    //         // register in substage
-    //         if (self.getStage(stage_name)) |stage| {
-    //             if (stage.substages) |*substages| {
-    //                 try substages.addSystem(sub, System);
-    //             } else return PipelineError.NoSubstagePipeline;
-    //         } else return PipelineError.StageNotFound;
-    //     } else {
-    //         // register directly in stage
-    //         try self.registry.pipeline.addSystem(stage_name, System);
-    //     }
-    // }
-
-    /// Add a system to a specific stage.
-    // pub fn addSystem(self: *Pipeline, stage_name: []const u8, comptime System: type) !void {
-    //     var stage = self.getStage(stage_name) orelse {
-    //         return PipelineError.StageNotFound;
-    //     };
-
-    //     try stage.addSystem(System);
-    // }
 
     /// Add multiple systems to a stage at once.
     pub fn addSystems(
@@ -418,8 +386,8 @@ pub const Stage = struct {
         return substages_empty and self.systems.items.len == 0;
     }
 
-    pub fn addSystem(self: *Stage, comptime System: type) !void {
-        const erased_system = try TypeErasedSystem.init(self.allocator, System);
+    pub fn addSystem(self: *Stage, comptime S: type) !void {
+        const erased_system = try TypeErasedSystem.init(self.allocator, S);
         errdefer erased_system.deinit();
 
         try self.systems.append(erased_system);
