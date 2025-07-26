@@ -1,1 +1,2 @@
-- [ ] rework resource system to be less clunky to work with. we should consider how to efficiently and elegantly store and query both singleton values and collections.
+- [ ] also implement the option to apply buffered updates to resources (akin to the buffered component query/updates)
+- [x] rework resource system to be less clunky to work with. we should consider how to efficiently and elegantly store and query both singleton values and collections.
