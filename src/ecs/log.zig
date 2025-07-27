@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const log = std.log.scoped(.pine);
+const log = std.log.scoped(.pine_ecs);
 
 pub const err = log.err;
 pub const debug = log.debug;
