@@ -122,6 +122,12 @@ pub fn ComponentStorage(comptime C: type) type {
         }
 
         pub fn deinit(self: *Self) void {
+            // deinit component if necessary
+            if (@hasDecl(C, "deinit")) {
+                for (self.components.items) |*component| {
+                    component.deinit();
+                }
+            }
             self.components.deinit();
         }
 
