@@ -19,7 +19,7 @@ pub const TypeErasedComponent = component.TypeErasedComponent;
 pub const TypeErasedSystem = system.TypeErasedSystem;
 
 pub const Registry = registry.Registry;
-pub const EntityID = registry.EntityID;
+pub const Entity = registry.Entity;
 
 pub const EntityView = query.EntityView;
 pub const ComponentQueryIterator = query.ComponentQueryIterator;

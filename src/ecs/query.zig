@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const reg = @import("registry.zig");
-const EntityID = reg.EntityID;
+const Entity = reg.Entity;
 const Registry = reg.Registry;
 const UpdateBuffer = @import("component.zig").UpdateBuffer;
 
@@ -24,11 +24,11 @@ pub fn EntityView(comptime component_types: anytype) type {
     return struct {
         const Self = @This();
 
-        entity_id: EntityID,
+        entity_id: Entity,
         component_ptrs: [component_count]*anyopaque,
 
         pub fn init(
-            entity_id: EntityID,
+            entity_id: Entity,
             component_ptrs: [component_count]*anyopaque,
         ) Self {
             return Self{
@@ -51,7 +51,7 @@ pub fn EntityView(comptime component_types: anytype) type {
         }
 
         /// Get the entity ID.
-        pub fn id(self: *const Self) EntityID {
+        pub fn id(self: *const Self) Entity {
             return self.entity_id;
         }
     };
@@ -158,7 +158,7 @@ pub fn BufferedEntityView(comptime component_types: anytype) type {
             return null;
         }
 
-        pub fn id(self: *const Self) EntityID {
+        pub fn id(self: *const Self) Entity {
             return self.base_view.entity_id;
         }
     };
@@ -169,7 +169,7 @@ pub fn BufferedComponent(comptime C: type) type {
         const Self = @This();
 
         ptr: *C,
-        entity_id: EntityID,
+        entity_id: Entity,
         update_buffer: *UpdateBuffer,
 
         /// Queue a new value for this component.

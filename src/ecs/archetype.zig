@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const EntityID = @import("registry.zig").EntityID;
+const Entity = @import("registry.zig").Entity;
 const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponent;
 
 pub const ArchetypeHash = u64;
@@ -10,16 +10,16 @@ pub const Archetype = struct {
     pub const VOID_HASH: ArchetypeHash = 0;
 
     const RemoveResult = struct {
-        removed_id: EntityID,
-        swapped_id: ?EntityID,
+        removed_id: Entity,
+        swapped_id: ?Entity,
     };
 
     allocator: Allocator,
 
     hash: u64,
 
-    /// Maps entity row index -> EntityID.
-    entities: std.ArrayList(EntityID),
+    /// Maps entity row index -> Entity.
+    entities: std.ArrayList(Entity),
 
     /// Maps @typeName(Component) -> ErasedComponentStorage.
     ///
@@ -29,7 +29,7 @@ pub const Archetype = struct {
     pub fn init(allocator: Allocator) Archetype {
         var archetype = Archetype{
             .allocator = allocator,
-            .entities = std.ArrayList(EntityID).init(allocator),
+            .entities = std.ArrayList(Entity).init(allocator),
             .components = std.StringArrayHashMap(TypeErasedComponentStorage).init(allocator),
             .hash = VOID_HASH,
         };
@@ -59,7 +59,7 @@ pub const Archetype = struct {
         const last_idx = self.entities.items.len - 1;
         const removed_entity_id = self.entities.swapRemove(entity_idx); // This is the ID being removed
 
-        var swapped_entity_id: ?EntityID = null;
+        var swapped_entity_id: ?Entity = null;
         if (entity_idx != last_idx) {
             // if we didn't remove the last element, something was swapped into entity_idx
             // the ID now at entity_idx is the one that was at last_idx

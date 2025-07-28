@@ -24,7 +24,8 @@ const ResourceKind = @import("resource/manager.zig").ResourceKind;
 const ResourceQuery = @import("resource/manager.zig").ResourceQuery;
 const RemoveInfo = @import("resource/manager.zig").RemoveInfo;
 
-pub const EntityID = u32;
+/// An `Entity` is simply an ID relating components.
+pub const Entity = u32;
 
 pub const EntityPointer = struct {
     /// An ID for the archetype in which the entity data resides.
@@ -44,13 +45,14 @@ const RegistryError = error{
     NoSuchArchetype,
     InternalInconsistency,
     UnregisteredResource,
+    DuplicateEntityComponent,
 };
 
 pub const Registry = struct {
     allocator: Allocator,
 
     /// Maps an entity ID to a pointer to its archetype.
-    entities: std.AutoHashMap(EntityID, EntityPointer),
+    entities: std.AutoHashMap(Entity, EntityPointer),
 
     /// Maps an archetype hash to its corresponding archetype.
     archetypes: std.AutoHashMap(ArchetypeHash, Archetype),
@@ -70,7 +72,7 @@ pub const Registry = struct {
     pub fn init(allocator: Allocator, config: RegistryConfig) !Registry {
         var registry = Registry{
             .allocator = allocator,
-            .entities = std.AutoHashMap(EntityID, EntityPointer).init(allocator),
+            .entities = std.AutoHashMap(Entity, EntityPointer).init(allocator),
             .archetypes = std.AutoHashMap(ArchetypeHash, Archetype).init(allocator),
             // .resources = std.StringHashMap(TypeErasedResourceStorage).init(allocator),
             .resources = try ResourceManager.init(allocator),
@@ -129,7 +131,7 @@ pub const Registry = struct {
     ///     Health{ .current = 3, .max = 5 },
     /// });
     /// ```
-    pub fn spawn(self: *Registry, components: anytype) !EntityID {
+    pub fn spawn(self: *Registry, components: anytype) !Entity {
         const entity = try self.createEntity();
         errdefer _ = self.destroyEntity(entity) catch unreachable; // here, the entity must have been created!
 
@@ -141,7 +143,7 @@ pub const Registry = struct {
         return entity;
     }
 
-    pub fn createEntity(self: *Registry) !EntityID {
+    pub fn createEntity(self: *Registry) !Entity {
         const new_id = self.entities.count();
         const empty_archetype = self.archetypes.getPtr(Archetype.VOID_HASH).?;
 
@@ -162,7 +164,7 @@ pub const Registry = struct {
     }
 
     /// Returns true if the entity was succesfully removed, false otherwise.
-    pub fn destroyEntity(self: *Registry, entity: EntityID) RegistryError!void {
+    pub fn destroyEntity(self: *Registry, entity: Entity) RegistryError!void {
         const entity_ptr = self.entities.get(entity) orelse return RegistryError.NoSuchEntity;
         var archetype = self.archetypes.getPtr(entity_ptr.archetype_hash) orelse
             return RegistryError.NoSuchArchetype;
@@ -259,7 +261,7 @@ pub const Registry = struct {
     /// Handle entity swapping after removal.
     fn handleSwappedEntity(
         self: *Registry,
-        swapped_entity_id: ?EntityID,
+        swapped_entity_id: ?Entity,
         original_entity_idx: usize,
     ) RegistryError!void {
         if (swapped_entity_id) |entity_id| {
@@ -272,16 +274,39 @@ pub const Registry = struct {
         }
     }
 
-    pub fn addComponent(self: *Registry, entity: EntityID, component: anytype) !void {
+    /// Check if an entity has a certain component.
+    pub fn hasComponent(self: *Registry, entity: Entity, comptime C: type) bool {
+        // get component names from archetype
+        const entity_ptr = self.entities.get(entity) orelse return false;
+        const archetype = self.archetypes.get(entity_ptr.archetype_hash) orelse return false;
+        const component_names = archetype.components.keys();
+
+        // check for a match
+        for (component_names) |name| {
+            if (std.mem.eql(u8, name, @typeName(C)))
+                return true;
+        }
+
+        return false;
+    }
+
+    pub fn addComponent(self: *Registry, entity: Entity, component: anytype) !void {
+        if (self.hasComponent(entity, @TypeOf(component))) {
+            return RegistryError.DuplicateEntityComponent;
+        }
+
         // get entity pointer or return error if entity doesn't exist
-        const entity_ptr = self.entities.get(entity) orelse return RegistryError.NoSuchEntity;
+        const entity_ptr = self.entities.get(entity) orelse {
+            return RegistryError.NoSuchEntity;
+        };
 
         // store the hash before any HashMap operations that might invalidate pointers
         const prev_archetype_hash = entity_ptr.archetype_hash;
 
         // get the previous archetype and verify it exists
-        const prev_archetype_check = self.archetypes.getPtr(prev_archetype_hash) orelse
+        const prev_archetype_check = self.archetypes.getPtr(prev_archetype_hash) orelse {
             return RegistryError.NoSuchArchetype;
+        };
 
         // calculate type name and resulting archetype hash
         const component_type_name = @typeName(@TypeOf(component));
@@ -298,8 +323,9 @@ pub const Registry = struct {
         };
 
         // IMPORTANT: Re-fetch prev_archetype after getOrPut, as the HashMap might have resized
-        const prev_archetype = self.archetypes.getPtr(prev_archetype_hash) orelse
+        const prev_archetype = self.archetypes.getPtr(prev_archetype_hash) orelse {
             return RegistryError.NoSuchArchetype;
+        };
 
         // setup new archetype if it doesn't exist
         if (created_new_archetype) {
@@ -357,22 +383,6 @@ pub const Registry = struct {
         }
 
         try handleSwappedEntity(self, remove_result.swapped_id, entity_ptr.entity_idx);
-    }
-
-    /// Check if an entity has a certain component.
-    pub fn hasComponent(self: *Registry, entity: EntityID, comptime C: type) bool {
-        // get component names from archetype
-        const entity_ptr = self.entities.get(entity) orelse return false;
-        const archetype = self.archetypes.get(entity_ptr.archetype_hash) orelse return false;
-        const component_names = archetype.components.keys();
-
-        // check for a match
-        for (component_names) |name| {
-            if (std.mem.eql(u8, name, @typeName(C)))
-                return true;
-        }
-
-        return false;
     }
 
     /// Query for entities that have all specified component types.

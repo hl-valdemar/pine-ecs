@@ -1,7 +1,7 @@
 const std = @import("std");
 const Allocator = std.mem.Allocator;
 
-const EntityID = @import("registry.zig").EntityID;
+const Entity = @import("registry.zig").Entity;
 
 pub const ComponentVTable = struct {
     deinit: *const fn (Allocator, *anyopaque) void,
@@ -157,7 +157,7 @@ pub fn ComponentStorage(comptime C: type) type {
 }
 
 pub const ComponentUpdate = struct {
-    entity_id: EntityID,
+    entity_id: Entity,
     component_type_name: []const u8,
     component_ptr: *anyopaque,
     new_value_bytes: []u8, // store the new value as bytes
