@@ -4,7 +4,7 @@ const Allocator = std.mem.Allocator;
 const log = @import("log.zig");
 const Pipeline = @import("pipeline.zig").Pipeline;
 const Plugin = @import("plugin.zig").Plugin;
-const query = @import("query.zig");
+const query = @import("query/query.zig");
 const EntityView = query.EntityView;
 const ComponentQueryIterator = query.ComponentQueryIterator;
 const ResourceQueryIterator = query.ResourceQueryIterator;
@@ -17,12 +17,12 @@ const ArchetypeHash = res.ArchetypeHash;
 const Stage = @import("pipeline.zig").Stage;
 const StageConfig = @import("pipeline.zig").StageConfig;
 const TypeErasedComponentStorage = @import("component.zig").TypeErasedComponent;
-const TypeErasedResourceStorage = @import("resource/singleton.zig").TypeErasedResourceStorage;
+const TypeErasedResourceStorage = @import("resource/singleton.zig").TypeErasedSingleton;
 const UpdateBuffer = @import("component.zig").UpdateBuffer;
 const ResourceManager = @import("resource/manager.zig").ResourceManager;
 const ResourceKind = @import("resource/manager.zig").ResourceKind;
 const ResourceQuery = @import("resource/manager.zig").ResourceQuery;
-const RemoveInfo = @import("resource/manager.zig").RemoveInfo;
+const RemoveInfo = @import("resource/manager.zig").ResourceManager.RemoveInfo;
 
 /// An `Entity` is simply an ID relating components.
 pub const Entity = u32;

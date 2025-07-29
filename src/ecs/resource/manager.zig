@@ -2,7 +2,7 @@ const std = @import("std");
 const Allocator = std.mem.Allocator;
 
 const log = @import("../log.zig");
-const ResourceQueryIterator = @import("../query.zig").ResourceQueryIterator;
+const ResourceQueryIterator = @import("../query/query.zig").ResourceQueryIterator;
 const Singleton = @import("singleton.zig").Singleton;
 const TypeErasedCollection = @import("collection.zig").TypeErasedCollection;
 const TypeErasedSingleton = @import("singleton.zig").TypeErasedSingleton;
