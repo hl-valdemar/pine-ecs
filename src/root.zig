@@ -12,6 +12,7 @@ pub const Archetype = archetype.Archetype;
 pub const ArchetypeHash = archetype.ArchetypeHash;
 
 pub const ResourceKind = resource.ResourceKind;
+pub const ResourceQuery = resource.ResourceQuery;
 pub const TypeErasedSingleton = resource.TypeErasedSingleton;
 pub const TypeErasedCollection = resource.TypeErasedCollection;
 
