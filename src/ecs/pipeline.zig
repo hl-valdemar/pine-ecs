@@ -161,6 +161,10 @@ pub const Pipeline = struct {
         stage_path: []const u8,
         comptime systems: anytype,
     ) !void {
+        if (!@typeInfo(systems).@"struct".is_tuple) {
+            return error.NotATuple;
+        }
+
         inline for (systems) |System| {
             try self.addSystem(stage_path, System);
         }

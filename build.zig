@@ -41,8 +41,12 @@ pub fn build(b: *std.Build) !void {
     docs_step.dependOn(&install_docs.step);
 
     // create executable modules for all examples
+    var gpa = std.heap.DebugAllocator(.{}).init;
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
     try addExamples(
-        std.heap.c_allocator,
+        allocator,
         b,
         EXAMPLES_DIR,
         &.{

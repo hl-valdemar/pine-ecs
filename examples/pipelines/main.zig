@@ -127,7 +127,7 @@ fn advancedPipelineExample(allocator: std.mem.Allocator) !void {
     // add systems to stages
     try registry.pipeline.addSystem("init", InitSystem);
     try registry.pipeline.addSystem("input", InputSystem);
-    try registry.pipeline.addSystems("ai", .{ AIDecisionSystem, AIMovementSystem });
+    // try registry.pipeline.addSystems("ai", .{ AIDecisionSystem, AIMovementSystem });
     try registry.pipeline.addSystem("physics", PhysicsSystem);
     try registry.pipeline.addSystem("render", RenderSystem);
     try registry.pipeline.addSystem("debug", DebugSystem);
